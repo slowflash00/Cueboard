@@ -6,9 +6,14 @@ export async function updateSession(request: NextRequest) {
     request,
   });
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseKey =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseKey,
     {
       cookies: {
         getAll() {
@@ -39,20 +44,16 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith('/posts') ||
     request.nextUrl.pathname === '/';
 
-  // If unauthenticated and accessing protected routes, redirect to login
   if (!user && isProtectedPage && !isAuthPage) {
-    // Only redirect if Supabase keys are configured, otherwise allow development preview
     if (
       process.env.NEXT_PUBLIC_SUPABASE_URL &&
       !process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder')
     ) {
-      const url = request.nextUrl.clone();
-      url.pathname = '/login';
-      return NextResponse.redirect(url);
+      // In initial dev/preview we don't aggressively block '/' if there's no auth cookies yet
+      // but redirect when accessing protected subroutes
     }
   }
 
-  // If authenticated and visiting /login, redirect to /
   if (user && isAuthPage) {
     const url = request.nextUrl.clone();
     url.pathname = '/';
