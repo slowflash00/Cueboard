@@ -67,3 +67,29 @@ Single user (the creator) initially. Personal tool, not a public product — but
 - Not building a general-purpose whiteboard/canvas tool (no freeform positioning)
 - Not hosting video files — video is always an external Google Drive link
 - Not a public prompt-sharing gallery (private, personal tool)
+
+## 8. Navigation (Pinterest pattern)
+- **Top nav bar**, present on every page: logo/Home (goes to the flattened Dashboard), a persistent search bar, a **"Boards"** link, and a **"Create"** button (dropdown: "New Board" / "New Post").
+- **Boards page** (`/boards`): a grid of every Board as a tile (cover image, title, item count), mirroring Pinterest's own boards grid. The **first tile is always a dashed "Create board" tile** — same pattern Pinterest uses — so creating a board never requires leaving the grid.
+- Clicking a Board tile opens that Board's detail view (its own flattened Projects + standalone Posts).
+- This makes the Dashboard the "everything" view and `/boards` the organizational entry point — matches how Pinterest separates your home feed from your profile's boards tab.
+
+## 9. Post ↔ Project relationship (many-to-many)
+- A Post belongs to exactly **one Board** (fixed at creation) but can be added to **zero or more Projects within that same Board** — the same way a Pinterest Pin can be saved to multiple boards.
+- **Visibility rule:** a Post that belongs to at least one Project is **not** shown as a separate standalone tile at the Board level or the top-level Dashboard — it's only reachable inside its Project(s). A Post with zero Project memberships shows as a standalone tile, same as today.
+- This keeps the "Projects are folders, standalone posts are individual" separation clean: nothing appears twice at the Board-flattened level, and a Post genuinely can live in more than one Project (e.g. a shared reference shot used across two client jobs) without duplication.
+- **Adding an existing Post to a Project:** inside a Project, an "+ Add existing post" action opens a picker of that Board's Posts not already in this Project, with search/filter. Selecting one adds it via the join table — the original Post row is untouched, so removing it from the Project later doesn't delete it, just un-links it (and it reappears as standalone if it's no longer in any Project).
+
+## 10. Empty, loading, and error states (Pinterest pattern)
+- **Empty Board/Project:** centered icon + short message ("Nothing here yet") + a primary "Create post" button — no blank white space.
+- **Search with no results:** centered message ("No results for '...'") with a suggestion to try different terms — no dead end.
+- **Image/media uploading:** the new tile appears immediately in the grid as a skeleton card with a subtle shimmer animation, swapping to the real thumbnail the moment upload completes — never a blocking spinner that hides the rest of the grid.
+- **Invalid Google Drive link:** inline red helper text under the input the moment it's clearly not a Drive URL; the Post can still be saved (per §"Video handling" in TRD) but the field visibly flags the problem rather than failing silently.
+
+## 11. Auth
+- Full auth screens: **Sign up, Log in, Forgot password (reset via email link), Change password (in account settings), and passwordless log in via email OTP** as an alternative to password login.
+- **Long-lived sessions:** stay signed in far longer than a typical 30-day default — session persists until explicit logout (see TRD §Auth for the Supabase settings that control this).
+- No manually-inserted accounts in the Supabase dashboard — account creation always goes through the Sign up screen.
+
+## 12. Pagination
+- **Infinite scroll** everywhere the grid appears (Dashboard, Board view, Boards page, search results) — matches Pinterest's own pattern. New batches load automatically as the user nears the bottom, with skeleton cards while the next batch fetches.

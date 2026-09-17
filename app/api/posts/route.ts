@@ -5,11 +5,51 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const boardId = searchParams.get('boardId');
   const projectId = searchParams.get('projectId');
+  const standaloneOnly = searchParams.get('standalone') === 'true';
   const query = searchParams.get('q');
+  const limit = parseInt(searchParams.get('limit') || '24', 10);
+  const offset = parseInt(searchParams.get('offset') || '0', 10);
 
   try {
     const supabase = await createClient();
 
+    // If querying by specific project
+    if (projectId) {
+      const { data: projectPostRows, error: ppErr } = await supabase
+        .from('project_posts')
+        .select(`
+          position,
+          post:posts(
+            *,
+            prompt:prompts(
+              id,
+              title,
+              parts:prompt_parts(
+                id,
+                subheading,
+                body_text,
+                position
+              )
+            )
+          )
+        `)
+        .eq('project_id', projectId)
+        .order('position', { ascending: true })
+        .range(offset, offset + limit - 1);
+
+      if (ppErr) {
+        return NextResponse.json({ posts: [] });
+      }
+
+      const posts = (projectPostRows || []).map((row: any) => ({
+        ...row.post,
+        project_position: row.position,
+      }));
+
+      return NextResponse.json({ posts });
+    }
+
+    // Default: fetch posts with their prompt and project memberships
     let dbQuery = supabase
       .from('posts')
       .select(`
@@ -23,7 +63,8 @@ export async function GET(request: Request) {
             body_text,
             position
           )
-        )
+        ),
+        project_posts(project_id)
       `)
       .order('position', { ascending: true })
       .order('created_at', { ascending: false });
@@ -32,11 +73,7 @@ export async function GET(request: Request) {
       dbQuery = dbQuery.eq('board_id', boardId);
     }
 
-    if (projectId) {
-      dbQuery = dbQuery.eq('project_id', projectId);
-    }
-
-    // Full-text search across prompt parts
+    // Full-text search
     if (query && query.trim().length > 0) {
       dbQuery = dbQuery.textSearch('prompt.parts.search_vector', query.trim(), {
         type: 'websearch',
@@ -44,15 +81,26 @@ export async function GET(request: Request) {
       });
     }
 
+    // Pagination
+    dbQuery = dbQuery.range(offset, offset + limit - 1);
+
     const { data, error } = await dbQuery;
 
     if (error) {
-      // If table does not exist or demo mode, return empty list gracefully
-      console.warn('Supabase query error (may be using placeholder):', error.message);
+      console.warn('Supabase query error:', error.message);
       return NextResponse.json({ posts: [] });
     }
 
-    return NextResponse.json({ posts: data || [] });
+    let posts = data || [];
+
+    // Filter standalone posts per PRD §9 & TRD §11 (must have 0 project memberships)
+    if (standaloneOnly) {
+      posts = posts.filter(
+        (p: any) => !p.project_posts || p.project_posts.length === 0
+      );
+    }
+
+    return NextResponse.json({ posts });
   } catch (err: unknown) {
     console.error('API /api/posts GET error:', err);
     return NextResponse.json({ posts: [] });
@@ -70,12 +118,11 @@ export async function POST(request: Request) {
 
     const userId = user?.id || '00000000-0000-0000-0000-000000000000';
 
-    // 1. Insert post
+    // 1. Insert post (without project_id column)
     const { data: post, error: postError } = await supabase
       .from('posts')
       .insert({
         board_id: body.board_id,
-        project_id: body.project_id || null,
         user_id: userId,
         media_type: body.media_type,
         image_url: body.image_url || null,
@@ -91,7 +138,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: postError.message }, { status: 400 });
     }
 
-    // 2. Insert prompt
+    // 2. If created inside a project, link via project_posts join table
+    if (body.project_id) {
+      await supabase.from('project_posts').insert({
+        project_id: body.project_id,
+        post_id: post.id,
+        user_id: userId,
+      });
+    }
+
+    // 3. Insert prompt
     const { data: prompt, error: promptError } = await supabase
       .from('prompts')
       .insert({
@@ -106,9 +162,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: promptError.message }, { status: 400 });
     }
 
-    // 3. Insert prompt parts
+    // 4. Insert prompt parts
     if (body.prompt_parts && body.prompt_parts.length > 0) {
-      const partsToInsert = body.prompt_parts.map((p: { subheading?: string; body_text: string; position: number }) => ({
+      const partsToInsert = body.prompt_parts.map((p: any) => ({
         prompt_id: prompt.id,
         user_id: userId,
         subheading: p.subheading || null,
@@ -116,41 +172,12 @@ export async function POST(request: Request) {
         position: p.position || 0,
       }));
 
-      const { error: partsError } = await supabase
-        .from('prompt_parts')
-        .insert(partsToInsert);
-
-      if (partsError) {
-        return NextResponse.json({ error: partsError.message }, { status: 400 });
-      }
+      await supabase.from('prompt_parts').insert(partsToInsert);
     }
 
     return NextResponse.json({ success: true, post });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to create post';
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
-}
-
-export async function DELETE(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const postId = searchParams.get('id');
-
-  if (!postId) {
-    return NextResponse.json({ error: 'Post ID is required' }, { status: 400 });
-  }
-
-  try {
-    const supabase = await createClient();
-    const { error } = await supabase.from('posts').delete().eq('id', postId);
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-
-    return NextResponse.json({ success: true });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Failed to delete post';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

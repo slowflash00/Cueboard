@@ -1,25 +1,29 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
 import { Navbar } from '@/components/navigation/Navbar';
 import { MasonryGrid } from '@/components/grid/MasonryGrid';
 import { PostCard } from '@/components/post/PostCard';
 import { ProjectTile } from '@/components/grid/ProjectTile';
 import { GroupWrapper } from '@/components/group/GroupWrapper';
 import { GroupColorPicker } from '@/components/group/GroupColorPicker';
-import { PostDetailModal } from '@/components/post/PostDetailModal';
+import { SkeletonCard } from '@/components/ui/SkeletonCard';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { PostEditorModal } from '@/components/post/PostEditorModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { PostWithDetails, Board, Project } from '@/types/database';
-import { Sparkles, Layers, Plus, CheckSquare } from 'lucide-react';
+import { Sparkles, Layers, Search, FolderPlus } from 'lucide-react';
 
-// Curated seed items so the app is immediately visual & testable
+const PAGE_SIZE = 24;
+
+// Curated seed items for immediate visual fidelity
 const DEMO_POSTS: PostWithDetails[] = [
   {
     id: 'demo-1',
     board_id: 'board-1',
-    project_id: null,
     user_id: 'demo-user',
     media_type: 'image',
     image_url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1000&q=80',
@@ -64,7 +68,6 @@ const DEMO_POSTS: PostWithDetails[] = [
   {
     id: 'demo-2',
     board_id: 'board-1',
-    project_id: null,
     user_id: 'demo-user',
     media_type: 'video_link',
     image_url: null,
@@ -109,7 +112,6 @@ const DEMO_POSTS: PostWithDetails[] = [
   {
     id: 'demo-3',
     board_id: 'board-1',
-    project_id: null,
     user_id: 'demo-user',
     media_type: 'image',
     image_url: 'https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?auto=format&fit=crop&w=800&q=80',
@@ -145,7 +147,6 @@ const DEMO_POSTS: PostWithDetails[] = [
   {
     id: 'demo-4',
     board_id: 'board-1',
-    project_id: null,
     user_id: 'demo-user',
     media_type: 'image',
     image_url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80',
@@ -181,7 +182,6 @@ const DEMO_POSTS: PostWithDetails[] = [
   {
     id: 'demo-5',
     board_id: 'board-1',
-    project_id: null,
     user_id: 'demo-user',
     media_type: 'none',
     image_url: null,
@@ -226,6 +226,8 @@ const DEMO_POSTS: PostWithDetails[] = [
 ];
 
 export default function DashboardPage() {
+  const router = useRouter();
+
   const [posts, setPosts] = useState<PostWithDetails[]>(DEMO_POSTS);
   const [boards, setBoards] = useState<Board[]>([
     {
@@ -253,35 +255,73 @@ export default function DashboardPage() {
   const [activeBoardId, setActiveBoardId] = useState<string>('board-1');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Infinite Scroll State per TRD §14
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const observerRef = useRef<HTMLDivElement>(null);
+
   // Modals state
   const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [selectedPost, setSelectedPost] = useState<PostWithDetails | null>(null);
+  const [isBoardModalOpen, setIsBoardModalOpen] = useState(false);
+  const [newBoardTitle, setNewBoardTitle] = useState('');
 
   // Grouping & Multi-select state
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedPostIds, setSelectedPostIds] = useState<string[]>([]);
   const [groupColorPickerOpen, setGroupColorPickerOpen] = useState(false);
 
-  // New Board modal state
-  const [isBoardModalOpen, setIsBoardModalOpen] = useState(false);
-  const [newBoardTitle, setNewBoardTitle] = useState('');
-
-  // Fetch real data from Supabase backend if configured
-  const fetchPosts = async () => {
+  // Fetch initial posts (standalone only per PRD §9)
+  const fetchPosts = async (reset = false) => {
+    const currentOffset = reset ? 0 : offset;
     try {
-      const res = await fetch(`/api/posts?boardId=${activeBoardId}`);
+      const res = await fetch(
+        `/api/posts?boardId=${activeBoardId}&standalone=true&limit=${PAGE_SIZE}&offset=${currentOffset}`
+      );
       const data = await res.json();
       if (data.posts && data.posts.length > 0) {
-        setPosts(data.posts);
+        if (reset) {
+          setPosts(data.posts);
+          setOffset(data.posts.length);
+        } else {
+          setPosts((prev) => [...prev, ...data.posts]);
+          setOffset((prev) => prev + data.posts.length);
+        }
+        setHasMore(data.posts.length === PAGE_SIZE);
+      } else {
+        setHasMore(false);
       }
     } catch {
       // Keep demo posts if DB is not yet populated
+      setHasMore(false);
+    } finally {
+      setIsLoadingMore(false);
     }
   };
 
   useEffect(() => {
-    fetchPosts();
+    fetchPosts(true);
   }, [activeBoardId]);
+
+  // Infinite Scroll IntersectionObserver per TRD §14
+  const handleObserver = useCallback(
+    (entries: IntersectionObserverEntry[]) => {
+      const [target] = entries;
+      if (target.isIntersecting && hasMore && !isLoadingMore) {
+        setIsLoadingMore(true);
+        fetchPosts(false);
+      }
+    },
+    [hasMore, isLoadingMore, offset, activeBoardId]
+  );
+
+  useEffect(() => {
+    const element = observerRef.current;
+    if (!element) return;
+    const observer = new IntersectionObserver(handleObserver, { threshold: 0.1 });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [handleObserver]);
 
   // Filter posts based on search query
   const filteredPosts = useMemo(() => {
@@ -289,9 +329,10 @@ export default function DashboardPage() {
     const q = searchQuery.toLowerCase().trim();
     return posts.filter((p) => {
       const titleMatch = p.prompt?.title?.toLowerCase().includes(q);
-      const partsMatch = p.prompt?.parts?.some((part) =>
-        part.body_text.toLowerCase().includes(q) ||
-        part.subheading?.toLowerCase().includes(q)
+      const partsMatch = p.prompt?.parts?.some(
+        (part) =>
+          part.body_text.toLowerCase().includes(q) ||
+          part.subheading?.toLowerCase().includes(q)
       );
       return titleMatch || partsMatch;
     });
@@ -347,10 +388,6 @@ export default function DashboardPage() {
     );
   };
 
-  const handleDeletePost = (postId: string) => {
-    setPosts((prev) => prev.filter((p) => p.id !== postId));
-  };
-
   const handleCreateBoard = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newBoardTitle.trim()) return;
@@ -373,7 +410,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-page)] pb-20">
-      {/* Pinterest-style Navbar */}
+      {/* Top Navbar */}
       <Navbar
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -381,10 +418,9 @@ export default function DashboardPage() {
         onOpenNewBoard={() => setIsBoardModalOpen(true)}
       />
 
-      {/* Board & Action Sub-header */}
+      {/* Subheader: Board selection pills & Grouping actions */}
       <div className="mx-auto max-w-7xl px-4 sm:px-6 pt-6 pb-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          {/* Boards Pills Selector */}
           <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none">
             {boards.map((b) => (
               <button
@@ -401,7 +437,6 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          {/* Grouping / Selection Toggle */}
           <div className="flex items-center gap-2">
             {isSelectMode ? (
               <div className="flex items-center gap-2 bg-[var(--bg-subtle)] px-3 py-1.5 rounded-full">
@@ -452,11 +487,11 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Main Content Area */}
+      {/* Main Grid View */}
       <main className="mx-auto max-w-7xl px-4 sm:px-6">
         {/* Project Folders Row */}
         {projects.length > 0 && !searchQuery && (
-          <div className="mb-6">
+          <section className="mb-8">
             <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
               Projects
             </h2>
@@ -465,90 +500,115 @@ export default function DashboardPage() {
                 <ProjectTile
                   key={proj.id}
                   project={proj}
-                  posts={posts.filter((p) => p.project_id === proj.id)}
-                  onClick={() => alert(`Opening project: ${proj.title}`)}
+                  onClick={() =>
+                    router.push(`/boards/${activeBoardId}/projects/${proj.id}`)
+                  }
                 />
               ))}
             </div>
-          </div>
+          </section>
         )}
 
-        {/* Pinterest Masonry Grid */}
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
-          {searchQuery ? `Search results for "${searchQuery}"` : 'All Prompts & Media'}
+        {/* Standalone Posts Grid */}
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+          {searchQuery ? `Search results for "${searchQuery}"` : 'Prompts & Creations'}
         </h2>
 
         {filteredPosts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--border-subtle)] p-12 text-center">
-            <Sparkles className="h-10 w-10 text-[var(--text-secondary)] mb-3 opacity-40" />
-            <h3 className="text-base font-semibold text-[var(--text-primary)]">
-              No prompts found
-            </h3>
-            <p className="text-sm text-[var(--text-secondary)] mt-1 max-w-sm">
-              Try adjusting your search terms or click &ldquo;New Post&rdquo; to add your first AI creation.
-            </p>
-          </div>
+          <EmptyState
+            icon={Search}
+            title={searchQuery ? `No results for "${searchQuery}"` : 'No prompts yet'}
+            description={
+              searchQuery
+                ? 'Try searching for another keyword or phrase.'
+                : 'Click "Create" in the top bar to record your first prompt.'
+            }
+            actionLabel={searchQuery ? undefined : 'Create Post'}
+            onAction={searchQuery ? undefined : () => setIsEditorOpen(true)}
+          />
         ) : (
-          <MasonryGrid>
-            {/* 1. Grouped clusters */}
-            {Array.from(groupedPostsMap.entries()).map(([groupKey, groupPosts]) => {
-              const color = groupPosts[0]?.group_color;
-              return (
-                <GroupWrapper
-                  key={groupKey}
-                  colorToken={color}
-                  label={`Group (${groupPosts.length} posts)`}
-                >
-                  {groupPosts.map((post) => (
-                    <PostCard
-                      key={post.id}
-                      post={post}
-                      onClick={() => setSelectedPost(post)}
-                      isSelectable={isSelectMode}
-                      isSelected={selectedPostIds.includes(post.id)}
-                      onToggleSelect={() => handleToggleSelect(post.id)}
-                    />
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => handleUngroup(groupKey)}
-                    className="text-xs font-medium text-[var(--text-secondary)] hover:text-red-500 hover:underline self-end pt-1"
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={{
+              hidden: { opacity: 0 },
+              visible: {
+                opacity: 1,
+                transition: { staggerChildren: 0.03 },
+              },
+            }}
+          >
+            <MasonryGrid>
+              {/* 1. Grouped clusters */}
+              {Array.from(groupedPostsMap.entries()).map(([groupKey, groupPosts]) => {
+                const color = groupPosts[0]?.group_color;
+                return (
+                  <GroupWrapper
+                    key={groupKey}
+                    colorToken={color}
+                    label={`Group (${groupPosts.length} items)`}
                   >
-                    Ungroup
-                  </button>
-                </GroupWrapper>
-              );
-            })}
+                    {groupPosts.map((post) => (
+                      <PostCard
+                        key={post.id}
+                        post={post}
+                        isSelectable={isSelectMode}
+                        isSelected={selectedPostIds.includes(post.id)}
+                        onToggleSelect={() => handleToggleSelect(post.id)}
+                      />
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => handleUngroup(groupKey)}
+                      className="text-xs font-medium text-[var(--text-secondary)] hover:text-red-500 hover:underline self-end pt-1"
+                    >
+                      Ungroup
+                    </button>
+                  </GroupWrapper>
+                );
+              })}
 
-            {/* 2. Standalone Posts */}
-            {standalonePosts.map((post) => (
-              <PostCard
-                key={post.id}
-                post={post}
-                onClick={() => setSelectedPost(post)}
-                isSelectable={isSelectMode}
-                isSelected={selectedPostIds.includes(post.id)}
-                onToggleSelect={() => handleToggleSelect(post.id)}
-              />
-            ))}
-          </MasonryGrid>
+              {/* 2. Standalone Posts */}
+              {standalonePosts.map((post) => (
+                <motion.div
+                  key={post.id}
+                  variants={{
+                    hidden: { opacity: 0, y: 8 },
+                    visible: { opacity: 1, y: 0 },
+                  }}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                >
+                  <PostCard
+                    post={post}
+                    isSelectable={isSelectMode}
+                    isSelected={selectedPostIds.includes(post.id)}
+                    onToggleSelect={() => handleToggleSelect(post.id)}
+                  />
+                </motion.div>
+              ))}
+
+              {/* 3. Skeleton Loading Shimmers when fetching next page */}
+              {isLoadingMore && (
+                <>
+                  <SkeletonCard aspectRatio="3 / 4" />
+                  <SkeletonCard aspectRatio="1 / 1" />
+                  <SkeletonCard aspectRatio="4 / 5" />
+                </>
+              )}
+            </MasonryGrid>
+          </motion.div>
         )}
-      </main>
 
-      {/* Post Detail & Split Prompt Copy Modal */}
-      <PostDetailModal
-        post={selectedPost}
-        isOpen={Boolean(selectedPost)}
-        onClose={() => setSelectedPost(null)}
-        onDelete={handleDeletePost}
-      />
+        {/* Infinite Scroll Sentinel */}
+        <div ref={observerRef} className="h-10 w-full" />
+      </main>
 
       {/* Post Editor Modal */}
       <PostEditorModal
         isOpen={isEditorOpen}
         onClose={() => setIsEditorOpen(false)}
         boardId={activeBoardId}
-        onPostCreated={fetchPosts}
+        onPostCreated={() => fetchPosts(true)}
       />
 
       {/* New Board Modal */}
@@ -566,10 +626,11 @@ export default function DashboardPage() {
             </h3>
             <form onSubmit={handleCreateBoard} className="space-y-4">
               <Input
-                placeholder="e.g. Product Renders, Anime, Sci-Fi"
+                placeholder="e.g. Concept Art, Ads, 3D Assets"
                 value={newBoardTitle}
                 onChange={(e) => setNewBoardTitle(e.target.value)}
                 autoFocus
+                required
               />
               <div className="flex justify-end gap-2">
                 <Button

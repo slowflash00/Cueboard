@@ -2,7 +2,9 @@
 
 import React, { useState } from 'react';
 import Image from 'next/image';
-import { Play, Copy, Check, ExternalLink, MoreHorizontal, CheckSquare, Square } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { Play, Copy, Check, CheckSquare, Square } from 'lucide-react';
 import { PostWithDetails } from '@/types/database';
 import { Badge } from '@/components/ui/Badge';
 import { cn } from '@/lib/utils';
@@ -22,6 +24,7 @@ export function PostCard({
   isSelected,
   onToggleSelect,
 }: PostCardProps) {
+  const router = useRouter();
   const [copied, setCopied] = useState(false);
 
   // Aspect ratio calculation to eliminate layout shift (CLS)
@@ -51,11 +54,16 @@ export function PostCard({
       onToggleSelect();
     } else if (onClick) {
       onClick();
+    } else {
+      router.push(`/posts/${post.id}`);
     }
   };
 
   return (
-    <div
+    <motion.div
+      layoutId={`post-card-${post.id}`}
+      whileHover={{ scale: 1.02 }}
+      transition={{ duration: 0.15, ease: 'easeOut' }}
       onClick={handleCardClick}
       className={cn(
         'group relative mb-4 overflow-hidden rounded-2xl bg-[var(--bg-card)] card-hover-shadow cursor-pointer break-inside-avoid select-none',
@@ -90,12 +98,12 @@ export function PostCard({
             alt={promptTitle}
             fill
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-            className="object-cover transition-transform duration-300 group-hover:scale-102"
+            className="object-cover transition-transform duration-300 group-hover:scale-103"
             loading="lazy"
           />
 
           {/* Hover overlay with quick actions */}
-          <div className="absolute inset-0 flex flex-col justify-between bg-gradient-to-t from-black/60 via-transparent to-black/20 p-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+          <div className="absolute inset-0 flex flex-col justify-between bg-gradient-to-t from-black/70 via-transparent to-black/20 p-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
             <div className="flex justify-end">
               {post.prompt && (
                 <button
@@ -118,7 +126,7 @@ export function PostCard({
                 {promptTitle}
               </p>
               {firstPromptPart && (
-                <p className="line-clamp-2 text-xs text-white/80 drop-shadow-sm">
+                <p className="line-clamp-2 text-xs text-white/85 drop-shadow-sm">
                   {firstPromptPart}
                 </p>
               )}
@@ -139,7 +147,7 @@ export function PostCard({
               alt={promptTitle}
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-              className="object-cover transition-transform duration-300 group-hover:scale-102"
+              className="object-cover transition-transform duration-300 group-hover:scale-103"
             />
           ) : (
             <div className="flex h-48 w-full items-center justify-center bg-[var(--bg-subtle)] text-[var(--text-secondary)]">
@@ -160,7 +168,7 @@ export function PostCard({
           </div>
 
           {/* Hover overlay with quick copy */}
-          <div className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/60 to-transparent p-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+          <div className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/70 to-transparent p-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
             <div className="text-white">
               <p className="line-clamp-1 text-sm font-semibold">{promptTitle}</p>
             </div>
@@ -184,7 +192,7 @@ export function PostCard({
 
       {/* 3. Text-only Post */}
       {post.media_type === 'none' && (
-        <div className="flex min-h-[160px] flex-col justify-between rounded-2xl bg-[var(--bg-subtle)] p-4 transition-colors">
+        <div className="flex min-h-[170px] flex-col justify-between rounded-2xl bg-[var(--bg-subtle)] p-4 transition-colors">
           <div>
             <div className="mb-3 flex items-center justify-between">
               <Badge variant="subtle">Text</Badge>
@@ -217,6 +225,6 @@ export function PostCard({
           )}
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

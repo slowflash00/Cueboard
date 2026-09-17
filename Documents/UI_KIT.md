@@ -108,7 +108,36 @@ Rule: the group-color picker only ever offers the 6 `--group-*` tokens above. Ne
 ## 6. Icon set
 **lucide-react only** — do not mix in other icon libraries. Core icons used: `Plus`, `Copy`, `Check`, `Play`, `ExternalLink`, `MoreHorizontal`, `GripVertical` (drag handle), `Folder`, `Layers` (group indicator), `Search`, `X`.
 
-## 7. Rules to keep the theme consistent
+## 7. Full-screen Post detail (not a modal)
+This is its own route (see TRD §13), using the full viewport — the current basic popup should be replaced entirely:
+- **Layout:** large media on the left ~60% of the viewport (image full-bleed or the Drive video iframe at a large fixed aspect ratio), Prompt panel scrolling independently on the right ~40% — stacks vertically on mobile, media first.
+- **Close/back:** a circular icon button (`X`, lucide-react), top-left over the media, `--bg-page` background at 90% opacity with a soft shadow so it's legible over any image — same placement pattern Pinterest uses for its own pin close button.
+- **Top-right of the panel:** quick actions — copy-all-prompts icon, "Open in Drive" (video posts only), more-options (`MoreHorizontal`).
+- Prompt Parts stack in the right panel exactly per the `PromptPartCard` spec in §5 — this is where most of the value of the page lives, so give it real breathing room (24px padding, not cramped).
+- Page transition: fade + slight scale-up from the grid card's position using framer-motion's shared-layout animation (`layoutId` matching the grid card) — reinforces that this is "the same card, now expanded," matching Pinterest's own pin-opening motion.
+
+## 8. Navigation & Boards page
+- **Top nav bar:** fixed, `--bg-page` background, `--border-subtle` bottom border only (1px, the one exception to "no borders" since it separates persistent chrome, not content cards). Height ~64px. Logo left, search bar centered (pill, `--bg-subtle`), "Boards" link + "Create" button right.
+- **"Create" button:** primary pill button, `--accent` background, opens a small dropdown (New Board / New Post) — use a shadcn `DropdownMenu`.
+- **Boards grid page:** same `MasonryGrid`-style layout as the Dashboard, but every tile is a `BoardTile` (cover image collage or single cover + title + item count, bottom-left overlay on hover). First tile is a fixed, non-scrolling **dashed-border "Create board" tile** (`--border-subtle` dashed 2px, `Plus` icon centered, `--bg-subtle` background) — always first regardless of sort.
+
+## 9. Empty, loading & error states
+- **Empty state (Board/Project/search):** centered column, a simple lucide icon (`Folder` / `Search` / `ImageOff` as fits) at 48px in `--text-secondary`, one line of message text, and where relevant a primary "Create post" pill button below it. No illustration assets needed — keep it icon + type, consistent with the rest of the kit's minimal-chrome philosophy.
+- **Skeleton/loading cards:** `--bg-subtle` rounded rectangle (16px radius, matching card radius) with a subtle left-to-right shimmer animation (framer-motion or a CSS `@keyframes` gradient sweep) — used for both "next page loading" (infinite scroll) and "upload in progress."
+- **Inline field error (e.g. invalid Drive link):** small text, 12px, a dedicated error red (`#D32F2F` — distinct from `--accent` red so error states never get confused with brand/primary-action red), directly under the field, no icon needed.
+
+## 10. Auth screens
+- Centered single-column card, max-width ~400px, on a plain `--bg-page` background (no imagery/split-screen — keep it minimal, consistent with the rest of the kit).
+- Inputs and primary button follow §5's standard input/button styles exactly — auth screens should feel like the same product, not a separate styled page.
+- OTP screen: 6 individual digit boxes (shadcn has an `InputOTP` primitive) rather than one text field — clearer affordance for a code.
+- Toggle link between "Log in with password" / "Log in with a code instead" styled as plain `--accent`-colored text, underline on hover only.
+
+## 11. Motion rules (framer-motion)
+- Grid items: fade + slight upward slide (8px) on initial load/page fetch, staggered ~30ms per item so the grid feels alive without being slow.
+- Card hover: shadow + 2% scale-up, 150ms ease-out — subtle, never a large "pop."
+- Respect `prefers-reduced-motion` — disable stagger/scale, keep only opacity fades, for accessibility.
+
+## 12. Rules to keep the theme consistent
 1. `--accent` (red) is reserved for: primary buttons, active nav/tab state, focus rings, save-confirmation. Never used for decorative backgrounds, group colors, or badges.
 2. Cards never have a visible border at rest — separation comes from whitespace + hover shadow only.
 3. All radii come from the fixed scale in §4 — no one-off radius values.

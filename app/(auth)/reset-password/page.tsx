@@ -1,30 +1,39 @@
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Sparkles, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { createClient } from '@/lib/supabase/client';
 
-export default function LoginPage() {
+export default function ResetPasswordPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const handlePasswordLogin = async (e: React.FormEvent) => {
+  const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+
+    if (newPassword !== confirmPassword) {
+      setErrorMsg('Passwords do not match.');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setErrorMsg('Password must be at least 6 characters.');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       const supabase = createClient();
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
       });
 
       if (error) throw error;
@@ -35,7 +44,7 @@ export default function LoginPage() {
       if (err instanceof Error) {
         setErrorMsg(err.message);
       } else {
-        setErrorMsg('Failed to sign in');
+        setErrorMsg('Failed to update password.');
       }
     } finally {
       setIsLoading(false);
@@ -45,16 +54,15 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--bg-page)] p-4">
       <div className="w-full max-w-[400px]">
-        {/* Header */}
         <div className="mb-8 flex flex-col items-center text-center">
           <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-md">
             <Sparkles className="h-7 w-7 fill-current" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
-            Log in to Prompt Board
+            Set New Password
           </h1>
           <p className="mt-1.5 text-sm text-[var(--text-secondary)]">
-            Access your personal visual prompt library
+            Choose a new password for your Prompt Board account
           </p>
         </div>
 
@@ -64,37 +72,29 @@ export default function LoginPage() {
           </div>
         )}
 
-        <form onSubmit={handlePasswordLogin} className="space-y-4">
+        <form onSubmit={handleUpdatePassword} className="space-y-4">
           <div>
             <label className="block text-xs font-semibold uppercase text-[var(--text-secondary)] mb-1.5">
-              Email Address
+              New Password
             </label>
             <Input
-              type="email"
-              placeholder="name@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="password"
+              placeholder="••••••••"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
               required
             />
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-semibold uppercase text-[var(--text-secondary)]">
-                Password
-              </label>
-              <Link
-                href="/forgot-password"
-                className="text-xs text-[var(--accent)] hover:underline font-medium"
-              >
-                Forgot password?
-              </Link>
-            </div>
+            <label className="block text-xs font-semibold uppercase text-[var(--text-secondary)] mb-1.5">
+              Confirm New Password
+            </label>
             <Input
               type="password"
               placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
               required
             />
           </div>
@@ -105,32 +105,10 @@ export default function LoginPage() {
             className="w-full mt-2"
             disabled={isLoading}
           >
-            {isLoading ? 'Signing In...' : 'Sign In'}
+            {isLoading ? 'Updating...' : 'Update Password & Sign In'}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </form>
-
-        {/* Alternative Login & Sign Up Options per UI_KIT §10 */}
-        <div className="mt-8 space-y-4 text-center border-t border-[var(--border-subtle)] pt-6">
-          <div>
-            <Link
-              href="/otp"
-              className="text-sm font-semibold text-[var(--accent)] hover:underline"
-            >
-              Log in with a code instead
-            </Link>
-          </div>
-
-          <p className="text-xs text-[var(--text-secondary)]">
-            Don&apos;t have an account yet?{' '}
-            <Link
-              href="/signup"
-              className="font-semibold text-[var(--text-primary)] hover:underline"
-            >
-              Sign up
-            </Link>
-          </p>
-        </div>
       </div>
     </div>
   );

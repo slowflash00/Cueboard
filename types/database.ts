@@ -18,6 +18,12 @@ export interface Board {
   updated_at: string;
 }
 
+export interface BoardWithDetails extends Board {
+  posts_count?: number;
+  projects_count?: number;
+  cover_image_url?: string | null;
+}
+
 export interface Project {
   id: string;
   board_id: string;
@@ -28,10 +34,14 @@ export interface Project {
   updated_at: string;
 }
 
+export interface ProjectWithDetails extends Project {
+  posts_count?: number;
+  cover_image_url?: string | null;
+}
+
 export interface Post {
   id: string;
   board_id: string;
-  project_id: string | null;
   user_id: string;
   media_type: MediaType;
   image_url: string | null;
@@ -44,6 +54,15 @@ export interface Post {
   position: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface ProjectPost {
+  id: string;
+  project_id: string;
+  post_id: string;
+  user_id: string;
+  position: number;
+  created_at: string;
 }
 
 export interface Prompt {
@@ -69,4 +88,6 @@ export interface PostWithDetails extends Post {
   prompt?: Prompt & {
     parts: PromptPart[];
   };
+  project_ids?: string[];
+  project_posts?: ProjectPost[];
 }

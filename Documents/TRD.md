@@ -72,3 +72,32 @@ SUPABASE_SERVICE_ROLE_KEY=   -- server actions only, never exposed to client
 
 ## 10. Search
 - Postgres full-text search (`tsvector`) on `prompt_parts.body_text` (and `prompts.title`), exposed via a single search input on the Dashboard. No external search service needed at this scale.
+
+## 11. Post ↔ Project (many-to-many)
+- Implemented via a `project_posts` join table (see DATABASE.md) instead of a single `project_id` column on `posts`.
+- A "standalone" Post = zero rows in `project_posts` for that `post_id`. The Dashboard/Board-level query filters posts with `not exists (select 1 from project_posts where post_id = posts.id)`.
+- Adding an existing Post to a Project = insert one row into `project_posts` (`project_id`, `post_id`, `position`). Removing = delete that row (never deletes the Post itself).
+- The "Add existing post" picker query: Posts where `board_id = current board` and not already linked to `current project_id`.
+
+## 12. Auth implementation
+- Supabase Auth, full flow:
+  - **Sign up / Log in:** standard email + password via `supabase.auth.signUp` / `signInWithPassword`.
+  - **Passwordless (OTP):** `supabase.auth.signInWithOtp({ email })` sends a one-time code; a second screen collects the code and calls `verifyOtp`.
+  - **Forgot password:** `resetPasswordForEmail` sends a reset link → dedicated `/reset-password` page calls `updateUser({ password })`.
+  - **Change password:** in account settings, same `updateUser({ password })` while already authenticated.
+- **Long-lived sessions:** in the Supabase project dashboard (Auth → Sessions), increase the refresh token / session expiry well beyond the default, and ensure the client uses persistent storage (`@supabase/ssr` with cookies, `persistSession: true`) so the session survives browser restarts and refreshes silently in the background until explicit logout.
+- No API route or server action should ever insert a user row directly — the Sign up screen is the only path to a new account.
+
+## 13. Navigation structure
+- Global layout wraps every route in a top nav bar: Home (logo), search input, "Boards" link, "Create" dropdown button.
+- New route: `/app/(dashboard)/boards/page.tsx` — grid of all Boards + a leading "Create board" tile (opens the same create-board dialog used from the nav dropdown).
+- Post detail is a **full route**, not a modal: `/app/(dashboard)/posts/[postId]/page.tsx` (already specified in §3's folder structure — confirm the implementation uses this route, not a shadcn `Dialog`/`Sheet` overlay, so it gets its own URL, is shareable/bookmarkable, and can use the full viewport for the enlarged media + prompt layout).
+
+## 14. Infinite scroll
+- Implement with an `IntersectionObserver` on a sentinel element at the bottom of the grid, fetching the next page (suggested page size: 24–30 items) via a Server Action or route handler as the sentinel enters the viewport.
+- While a page is loading, append skeleton cards (same aspect-ratio placeholders as the upload-in-progress state) rather than a spinner, so the grid never "jumps."
+
+## 15. UI polish libraries (all free)
+- **framer-motion** — grid item fade/slide-in on load, hover scale/shadow transitions, page transition when opening a Post's full-screen route, animated skeleton shimmer.
+- **next/image** — automatic optimization, blur-up placeholder (`placeholder="blur"`) using the stored image dimensions for a smooth loading feel instead of pop-in.
+- Existing choices (shadcn/ui, lucide-react, @dnd-kit, CSS columns/react-masonry-css) remain as specified in §1 — no additional UI dependency needed beyond framer-motion.

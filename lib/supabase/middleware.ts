@@ -38,11 +38,16 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isAuthPage = request.nextUrl.pathname.startsWith('/login');
+  const isAuthPage =
+    request.nextUrl.pathname.startsWith('/login') ||
+    request.nextUrl.pathname.startsWith('/signup') ||
+    request.nextUrl.pathname.startsWith('/otp') ||
+    request.nextUrl.pathname.startsWith('/forgot-password') ||
+    request.nextUrl.pathname.startsWith('/reset-password');
   const isProtectedPage =
     request.nextUrl.pathname.startsWith('/boards') ||
     request.nextUrl.pathname.startsWith('/posts') ||
-    request.nextUrl.pathname === '/';
+    request.nextUrl.pathname.startsWith('/account');
 
   if (!user && isProtectedPage && !isAuthPage) {
     if (

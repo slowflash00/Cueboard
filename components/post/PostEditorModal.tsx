@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Plus, Trash2, Image as ImageIcon, Video, FileText, Upload } from 'lucide-react';
+import { X, Plus, Trash2, Image as ImageIcon, Video, FileText, Upload, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { MediaType } from '@/types/database';
@@ -46,6 +46,10 @@ export function PostEditorModal({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  // Real-time Drive validation per PRD §10 / UI_KIT §9
+  const isInvalidDriveLink =
+    videoUrl.trim().length > 0 && !parseDriveLink(videoUrl);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -120,7 +124,7 @@ export function PostEditorModal({
         }
       }
 
-      // Call API / Server Action to save post
+      // Call API to save post
       const response = await fetch('/api/posts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -182,7 +186,7 @@ export function PostEditorModal({
         </div>
 
         {errorMsg && (
-          <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-600 border border-red-200">
+          <div className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-[#D32F2F] border border-red-200">
             {errorMsg}
           </div>
         )}
@@ -233,7 +237,7 @@ export function PostEditorModal({
             </div>
           </div>
 
-          {/* Media Inputs */}
+          {/* Image Upload Area */}
           {mediaType === 'image' && (
             <div>
               <label className="block text-xs font-semibold uppercase text-[var(--text-secondary)] mb-2">
@@ -256,7 +260,7 @@ export function PostEditorModal({
                       Click to choose an image
                     </span>
                     <span className="text-xs text-[var(--text-secondary)] mt-1">
-                      PNG, JPG, WEBP up to 25MB
+                      PNG, JPG, WEBP
                     </span>
                   </>
                 )}
@@ -270,6 +274,7 @@ export function PostEditorModal({
             </div>
           )}
 
+          {/* Video Drive Link Area */}
           {mediaType === 'video_link' && (
             <div className="space-y-4">
               <div>
@@ -281,8 +286,16 @@ export function PostEditorModal({
                   value={videoUrl}
                   onChange={(e) => setVideoUrl(e.target.value)}
                 />
+
+                {/* Inline Drive Validation Error in dedicated #D32F2F per UI_KIT §9 */}
+                {isInvalidDriveLink && (
+                  <p className="mt-1.5 text-xs text-[#D32F2F] font-medium">
+                    This link does not look like a Google Drive file link. Post can still be saved, but video preview may not embed.
+                  </p>
+                )}
+
                 <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                  Make sure the link sharing setting is set to &ldquo;Anyone with the link&rdquo;.
+                  Make sure link sharing is set to &ldquo;Anyone with the link&rdquo;.
                 </p>
               </div>
 
@@ -341,14 +354,14 @@ export function PostEditorModal({
                   <button
                     type="button"
                     onClick={() => addPromptPart('Negative')}
-                    className="text-xs font-medium text-[var(--accent)] hover:underline"
+                    className="text-xs font-semibold text-[var(--accent)] hover:underline cursor-pointer"
                   >
                     + Negative
                   </button>
                   <button
                     type="button"
                     onClick={() => addPromptPart('Camera / Style')}
-                    className="text-xs font-medium text-[var(--accent)] hover:underline"
+                    className="text-xs font-semibold text-[var(--accent)] hover:underline cursor-pointer"
                   >
                     + Style
                   </button>
@@ -375,7 +388,7 @@ export function PostEditorModal({
                         <button
                           type="button"
                           onClick={() => removePromptPart(part.id)}
-                          className="text-[var(--text-secondary)] hover:text-red-500"
+                          className="text-[var(--text-secondary)] hover:text-red-500 cursor-pointer"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -383,7 +396,7 @@ export function PostEditorModal({
                     </div>
                     <textarea
                       rows={3}
-                      placeholder="Enter the exact prompt text..."
+                      placeholder="Enter the prompt text..."
                       value={part.body_text}
                       onChange={(e) =>
                         updatePromptPart(part.id, 'body_text', e.target.value)

@@ -47,8 +47,7 @@ create type media_type as enum ('image', 'video_link', 'none');
 
 create table posts (
   id uuid primary key default gen_random_uuid(),
-  board_id uuid not null references boards(id) on delete cascade,
-  project_id uuid references projects(id) on delete cascade,   -- NULL = standalone post directly on the board
+  board_id uuid not null references boards(id) on delete cascade,   -- fixed home board; NOT the project link (see project_posts below)
   user_id uuid not null references auth.users(id) on delete cascade,
 
   media_type media_type not null default 'none',
@@ -73,9 +72,37 @@ create table posts (
   )
 );
 create index posts_board_id_idx on posts(board_id);
-create index posts_project_id_idx on posts(project_id);
 create index posts_group_key_idx on posts(group_key);
 ```
+
+### project_posts (many-to-many: a Post can belong to 0+ Projects)
+```sql
+create table project_posts (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects(id) on delete cascade,
+  post_id uuid not null references posts(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  position float not null default 0,
+  created_at timestamptz not null default now(),
+  unique (project_id, post_id)
+);
+create index project_posts_project_id_idx on project_posts(project_id);
+create index project_posts_post_id_idx on project_posts(post_id);
+```
+- A Post is **standalone** (shows as its own tile at Board/Dashboard level) when it has **zero** rows here:
+  ```sql
+  select * from posts p
+  where p.board_id = :board_id
+    and not exists (select 1 from project_posts pp where pp.post_id = p.id);
+  ```
+- A Project's Posts (in its own position order):
+  ```sql
+  select p.* from posts p
+  join project_posts pp on pp.post_id = p.id
+  where pp.project_id = :project_id
+  order by pp.position;
+  ```
+- Removing a Post from a Project = `delete from project_posts where project_id = :project_id and post_id = :post_id` — the Post row itself is untouched, and it automatically becomes standalone again if that was its only Project membership.
 
 ### prompts
 ```sql
@@ -117,7 +144,7 @@ create policy "insert own" on boards for insert with check (auth.uid() = user_id
 create policy "update own" on boards for update using (auth.uid() = user_id);
 create policy "delete own" on boards for delete using (auth.uid() = user_id);
 ```
-Repeat verbatim (swap table name) for `projects`, `posts`, `prompts`, `prompt_parts`. For `prompts` and `prompt_parts`, since they don't have a direct `user_id`-friendly single-hop in every case, keep the `user_id` column on both (denormalized, written at insert time from the parent post) so the same simple policy pattern works everywhere — avoids nested subquery policies, which are slower and harder to debug.
+Repeat verbatim (swap table name) for `projects`, `posts`, `prompts`, `prompt_parts`, and `project_posts`. For `prompts`, `prompt_parts`, and `project_posts`, since they don't have a direct `user_id`-friendly single-hop in every case, keep the `user_id` column on all of them (denormalized, written at insert time from the parent post/project) so the same simple policy pattern works everywhere — avoids nested subquery policies, which are slower and harder to debug.
 
 ## 4. Storage buckets
 ```
