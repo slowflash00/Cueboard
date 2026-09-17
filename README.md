@@ -1,36 +1,45 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Cueboard
+
+A Pinterest-style visual library for organizing AI-generated images, videos, and the multi-part prompts that created them. Built with Next.js 16, Supabase, and Tailwind CSS.
+
+## Features
+
+- **Boards & Projects** — Organize AI creations into thematic collections and sub-projects
+- **Multi-Part Prompts** — Store positive/negative prompts, camera settings, LoRA weights, and more as structured prompt parts with one-click copy
+- **Pinterest-Style Masonry Grid** — Visual browsing with infinite scroll, skeleton loading, and smooth animations
+- **Full-Screen Post Detail** — 60/40 media + prompt panel layout with quick copy actions
+- **Google Drive Video Links** — Link video content with manually-uploaded thumbnails
+- **Post Grouping** — Visually group related posts with color-coded clusters
+- **Many-to-Many Projects** — Add the same post to multiple projects without duplication
+- **Full Auth Suite** — Email/password login, OTP passwordless login, forgot/reset password, account settings
+
+## Tech Stack
+
+- **Framework**: Next.js 16 (App Router)
+- **Database & Auth**: Supabase (Postgres + RLS + Storage)
+- **Styling**: Tailwind CSS v4
+- **Animations**: Framer Motion
+- **Icons**: lucide-react
+- **Drag & Drop**: @dnd-kit
 
 ## Getting Started
 
-First, run the development server:
+1. Clone the repository
+2. Copy `.env.example` to `.env.local` and fill in your Supabase credentials
+3. Install dependencies:
+   ```bash
+   npm install
+   ```
+4. Run the development server:
+   ```bash
+   npm run dev
+   ```
+5. Open [http://localhost:3000](http://localhost:3000)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Database Setup
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Run the migration files in `supabase/migrations/` against your Supabase project, or connect your GitHub repo to Supabase for automatic schema deployment.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## License
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Private project.

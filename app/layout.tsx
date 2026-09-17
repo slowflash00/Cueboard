@@ -9,8 +9,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Prompt Board — Visual AI Library",
-  description: "A Pinterest-style visual library for AI-generated images, videos, and multi-part prompts.",
+  title: "Cueboard — Visual AI Prompt Library",
+  description: "A Pinterest-style visual library for organizing AI-generated images, videos, and multi-part prompts.",
 };
 
 export default function RootLayout({

@@ -10,48 +10,9 @@ import { Input } from '@/components/ui/Input';
 import { BoardWithDetails } from '@/types/database';
 import { PostEditorModal } from '@/components/post/PostEditorModal';
 
-const DEMO_BOARDS: BoardWithDetails[] = [
-  {
-    id: 'board-1',
-    user_id: 'demo-user',
-    title: 'Character & Portrait Concepts',
-    cover_url: null,
-    cover_image_url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80',
-    position: 0,
-    posts_count: 8,
-    projects_count: 2,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'board-2',
-    user_id: 'demo-user',
-    title: '3D Render & Product Ads',
-    cover_url: null,
-    cover_image_url: 'https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?auto=format&fit=crop&w=800&q=80',
-    position: 1,
-    posts_count: 14,
-    projects_count: 3,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'board-3',
-    user_id: 'demo-user',
-    title: 'Architectural Lighting & Vistas',
-    cover_url: null,
-    cover_image_url: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80',
-    position: 2,
-    posts_count: 5,
-    projects_count: 1,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
-
 export default function BoardsPage() {
   const router = useRouter();
-  const [boards, setBoards] = useState<BoardWithDetails[]>(DEMO_BOARDS);
+  const [boards, setBoards] = useState<BoardWithDetails[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [isPostModalOpen, setIsPostModalOpen] = useState(false);
@@ -62,12 +23,12 @@ export default function BoardsPage() {
         const res = await fetch('/api/boards');
         if (res.ok) {
           const data = await res.json();
-          if (data.boards && data.boards.length > 0) {
+          if (data.boards) {
             setBoards(data.boards);
           }
         }
       } catch (e) {
-        console.warn('Using demo boards fallback', e);
+        console.warn('Could not fetch boards', e);
       }
     }
     loadBoards();
@@ -77,32 +38,25 @@ export default function BoardsPage() {
     e.preventDefault();
     if (!newTitle.trim()) return;
 
-    const newBoard: BoardWithDetails = {
-      id: `board-${Date.now()}`,
-      user_id: 'demo',
-      title: newTitle.trim(),
-      cover_url: null,
-      cover_image_url: null,
-      position: boards.length,
-      posts_count: 0,
-      projects_count: 0,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    setBoards((prev) => [...prev, newBoard]);
-    setNewTitle('');
-    setIsCreateModalOpen(false);
-
     try {
-      await fetch('/api/boards', {
+      const res = await fetch('/api/boards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: newBoard.title }),
+        body: JSON.stringify({ title: newTitle.trim() }),
       });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.board) {
+          setBoards((prev) => [...prev, data.board]);
+        }
+      }
     } catch (err) {
-      console.error(err);
+      console.error('Failed to create board', err);
     }
+
+    setNewTitle('');
+    setIsCreateModalOpen(false);
   };
 
   return (

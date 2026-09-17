@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Search, Plus, Sparkles, FolderPlus, User, LogOut, KeyRound } from 'lucide-react';
+import { Search, Plus, LayoutGrid, FolderPlus, User, LogOut, KeyRound } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 
@@ -66,10 +66,10 @@ export function Navbar({
       <div className="flex items-center gap-6">
         <Link href="/" className="flex items-center gap-2.5 group">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-sm transition-transform group-hover:scale-105">
-            <Sparkles className="h-5 w-5 fill-current" />
+            <LayoutGrid className="h-5 w-5" />
           </div>
           <span className="text-lg font-bold tracking-tight text-[var(--text-primary)]">
-            Prompt Board
+            Cueboard
           </span>
         </Link>
 

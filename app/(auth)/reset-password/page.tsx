@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Sparkles, ArrowRight } from 'lucide-react';
+import { LayoutGrid, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { createClient } from '@/lib/supabase/client';
@@ -56,13 +56,13 @@ export default function ResetPasswordPage() {
       <div className="w-full max-w-[400px]">
         <div className="mb-8 flex flex-col items-center text-center">
           <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-md">
-            <Sparkles className="h-7 w-7 fill-current" />
+            <LayoutGrid className="h-7 w-7" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
             Set New Password
           </h1>
           <p className="mt-1.5 text-sm text-[var(--text-secondary)]">
-            Choose a new password for your Prompt Board account
+            Choose a new password for your Cueboard account
           </p>
         </div>
 

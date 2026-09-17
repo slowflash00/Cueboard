@@ -15,244 +15,18 @@ import { PostEditorModal } from '@/components/post/PostEditorModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { PostWithDetails, Board, Project } from '@/types/database';
-import { Sparkles, Layers, Search, FolderPlus } from 'lucide-react';
+import { Layers, Search, FolderPlus } from 'lucide-react';
 
 const PAGE_SIZE = 24;
-
-// Curated seed items for immediate visual fidelity
-const DEMO_POSTS: PostWithDetails[] = [
-  {
-    id: 'demo-1',
-    board_id: 'board-1',
-    user_id: 'demo-user',
-    media_type: 'image',
-    image_url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1000&q=80',
-    image_width: 1000,
-    image_height: 1250,
-    video_url: null,
-    video_thumbnail_url: null,
-    group_key: null,
-    group_color: null,
-    position: 0,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    prompt: {
-      id: 'pr-1',
-      post_id: 'demo-1',
-      user_id: 'demo-user',
-      title: 'Neon Cyberpunk Portrait',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      parts: [
-        {
-          id: 'pp-1',
-          prompt_id: 'pr-1',
-          user_id: 'demo-user',
-          subheading: 'Positive Prompt',
-          body_text: 'cinematic portrait of a futuristic android in neon rain, volumetric lighting, ray tracing, sharp focus, 8k octane render, photorealistic, Hasselblad 80mm f/1.4',
-          position: 0,
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: 'pp-2',
-          prompt_id: 'pr-1',
-          user_id: 'demo-user',
-          subheading: 'Negative Prompt',
-          body_text: 'deformed, blurry, bad anatomy, disfigured, poorly drawn face, mutation, mutated, extra limb, low quality, artifacts',
-          position: 1,
-          created_at: new Date().toISOString(),
-        },
-      ],
-    },
-  },
-  {
-    id: 'demo-2',
-    board_id: 'board-1',
-    user_id: 'demo-user',
-    media_type: 'video_link',
-    image_url: null,
-    image_width: 1280,
-    image_height: 720,
-    video_url: 'https://drive.google.com/file/d/1gqjD0k3u_mock_id/view?usp=sharing',
-    video_thumbnail_url: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1280&q=80',
-    group_key: null,
-    group_color: null,
-    position: 1,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    prompt: {
-      id: 'pr-2',
-      post_id: 'demo-2',
-      user_id: 'demo-user',
-      title: 'Retro Sci-Fi Computer Terminal (Runway Gen-2)',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      parts: [
-        {
-          id: 'pp-3',
-          prompt_id: 'pr-2',
-          user_id: 'demo-user',
-          subheading: 'Motion Prompt',
-          body_text: 'slow camera push-in towards flickering green phosphor CRT monitors in an abandoned 1980s bunker, dust particles floating in air, ambient fog',
-          position: 0,
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: 'pp-4',
-          prompt_id: 'pr-2',
-          user_id: 'demo-user',
-          subheading: 'Camera Settings',
-          body_text: 'Zoom: 3.5, Pan Right: 1.0, Motion Strength: 5, Motion Brush on monitor screens',
-          position: 1,
-          created_at: new Date().toISOString(),
-        },
-      ],
-    },
-  },
-  {
-    id: 'demo-3',
-    board_id: 'board-1',
-    user_id: 'demo-user',
-    media_type: 'image',
-    image_url: 'https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?auto=format&fit=crop&w=800&q=80',
-    image_width: 800,
-    image_height: 800,
-    video_url: null,
-    video_thumbnail_url: null,
-    group_key: 'sample-group-1',
-    group_color: '--group-purple',
-    position: 2,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    prompt: {
-      id: 'pr-3',
-      post_id: 'demo-3',
-      user_id: 'demo-user',
-      title: 'Minimalist 3D Abstract Sphere',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      parts: [
-        {
-          id: 'pp-5',
-          prompt_id: 'pr-3',
-          user_id: 'demo-user',
-          subheading: 'Concept Prompt',
-          body_text: 'iridescent metallic spheres hovering over a matte ceramic podium, soft pastel studio lighting, minimal composition, clean backdrop, Cinema4D render',
-          position: 0,
-          created_at: new Date().toISOString(),
-        },
-      ],
-    },
-  },
-  {
-    id: 'demo-4',
-    board_id: 'board-1',
-    user_id: 'demo-user',
-    media_type: 'image',
-    image_url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80',
-    image_width: 800,
-    image_height: 1000,
-    video_url: null,
-    video_thumbnail_url: null,
-    group_key: 'sample-group-1',
-    group_color: '--group-purple',
-    position: 3,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    prompt: {
-      id: 'pr-4',
-      post_id: 'demo-4',
-      user_id: 'demo-user',
-      title: 'Variant B: Gradient Fluid Shapes',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      parts: [
-        {
-          id: 'pp-6',
-          prompt_id: 'pr-4',
-          user_id: 'demo-user',
-          subheading: 'Style Prompt',
-          body_text: 'flowing glass liquid forms, translucent refraction, rainbow dispersion, minimal studio backdrop, clean high key aesthetic',
-          position: 0,
-          created_at: new Date().toISOString(),
-        },
-      ],
-    },
-  },
-  {
-    id: 'demo-5',
-    board_id: 'board-1',
-    user_id: 'demo-user',
-    media_type: 'none',
-    image_url: null,
-    image_width: null,
-    image_height: null,
-    video_url: null,
-    video_thumbnail_url: null,
-    group_key: null,
-    group_color: null,
-    position: 4,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    prompt: {
-      id: 'pr-5',
-      post_id: 'demo-5',
-      user_id: 'demo-user',
-      title: 'Master Architecture System Prompt',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      parts: [
-        {
-          id: 'pp-7',
-          prompt_id: 'pr-5',
-          user_id: 'demo-user',
-          subheading: 'System Persona',
-          body_text: 'Act as an award-winning architectural photographer. You specialize in brutalist and Scandinavian modern interior concepts with natural daylighting and honest materials.',
-          position: 0,
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: 'pp-8',
-          prompt_id: 'pr-5',
-          user_id: 'demo-user',
-          subheading: 'Default Camera Rig',
-          body_text: 'Shot on Canon EOS R5, 24mm tilt-shift lens, f/8, ISO 100, long exposure, tripod mount, morning golden hour sunlight cascading across raw concrete textures.',
-          position: 1,
-          created_at: new Date().toISOString(),
-        },
-      ],
-    },
-  },
-];
 
 export default function DashboardPage() {
   const router = useRouter();
 
-  const [posts, setPosts] = useState<PostWithDetails[]>(DEMO_POSTS);
-  const [boards, setBoards] = useState<Board[]>([
-    {
-      id: 'board-1',
-      user_id: 'demo',
-      title: 'All AI Creations',
-      cover_url: null,
-      position: 0,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-  ]);
-  const [projects, setProjects] = useState<Project[]>([
-    {
-      id: 'proj-1',
-      board_id: 'board-1',
-      user_id: 'demo',
-      title: 'Client A - 3D Brand Icons',
-      position: 0,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-  ]);
+  const [posts, setPosts] = useState<PostWithDetails[]>([]);
+  const [boards, setBoards] = useState<Board[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
 
-  const [activeBoardId, setActiveBoardId] = useState<string>('board-1');
+  const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Infinite Scroll State per TRD §14
@@ -271,8 +45,28 @@ export default function DashboardPage() {
   const [selectedPostIds, setSelectedPostIds] = useState<string[]>([]);
   const [groupColorPickerOpen, setGroupColorPickerOpen] = useState(false);
 
+  // Fetch boards on mount
+  useEffect(() => {
+    async function loadBoards() {
+      try {
+        const res = await fetch('/api/boards');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.boards && data.boards.length > 0) {
+            setBoards(data.boards);
+            setActiveBoardId(data.boards[0].id);
+          }
+        }
+      } catch (e) {
+        console.warn('Could not fetch boards', e);
+      }
+    }
+    loadBoards();
+  }, []);
+
   // Fetch initial posts (standalone only per PRD §9)
   const fetchPosts = async (reset = false) => {
+    if (!activeBoardId) return;
     const currentOffset = reset ? 0 : offset;
     try {
       const res = await fetch(
@@ -289,10 +83,11 @@ export default function DashboardPage() {
         }
         setHasMore(data.posts.length === PAGE_SIZE);
       } else {
+        if (reset) setPosts([]);
         setHasMore(false);
       }
     } catch {
-      // Keep demo posts if DB is not yet populated
+      if (reset) setPosts([]);
       setHasMore(false);
     } finally {
       setIsLoadingMore(false);
@@ -300,7 +95,9 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    fetchPosts(true);
+    if (activeBoardId) {
+      fetchPosts(true);
+    }
   }, [activeBoardId]);
 
   // Infinite Scroll IntersectionObserver per TRD §14
@@ -388,22 +185,28 @@ export default function DashboardPage() {
     );
   };
 
-  const handleCreateBoard = (e: React.FormEvent) => {
+  const handleCreateBoard = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newBoardTitle.trim()) return;
 
-    const newBoard: Board = {
-      id: `board-${Date.now()}`,
-      user_id: 'user',
-      title: newBoardTitle.trim(),
-      cover_url: null,
-      position: boards.length,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+    try {
+      const res = await fetch('/api/boards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newBoardTitle.trim() }),
+      });
 
-    setBoards((prev) => [...prev, newBoard]);
-    setActiveBoardId(newBoard.id);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.board) {
+          setBoards((prev) => [...prev, data.board]);
+          setActiveBoardId(data.board.id);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to create board', err);
+    }
+
     setNewBoardTitle('');
     setIsBoardModalOpen(false);
   };
@@ -607,7 +410,7 @@ export default function DashboardPage() {
       <PostEditorModal
         isOpen={isEditorOpen}
         onClose={() => setIsEditorOpen(false)}
-        boardId={activeBoardId}
+        boardId={activeBoardId || ''}
         onPostCreated={() => fetchPosts(true)}
       />
 
