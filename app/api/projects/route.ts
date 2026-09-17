@@ -40,7 +40,14 @@ export async function POST(request: Request) {
       data: { user },
     } = await supabase.auth.getUser();
 
-    const userId = user?.id || '00000000-0000-0000-0000-000000000000';
+    if (!user) {
+      return NextResponse.json(
+        { error: 'You must be logged in to create a project.' },
+        { status: 401 }
+      );
+    }
+
+    const userId = user.id;
 
     const { data, error } = await supabase
       .from('projects')

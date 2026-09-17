@@ -1,10 +1,23 @@
 'use client';
 
-import React, { useState } from 'react';
-import { X, Plus, Trash2, Image as ImageIcon, Video, FileText, Upload, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import {
+  X,
+  Plus,
+  Trash2,
+  Image as ImageIcon,
+  Video,
+  FileText,
+  Upload,
+  FolderPlus,
+  ChevronDown,
+  Sparkles,
+  ArrowRight,
+  Check,
+} from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { MediaType } from '@/types/database';
+import { MediaType, Board } from '@/types/database';
 import { uploadImage } from '@/lib/media';
 import { parseDriveLink } from '@/lib/video-link';
 
@@ -17,18 +30,30 @@ export interface PromptPartInput {
 export interface PostEditorModalProps {
   isOpen: boolean;
   onClose: () => void;
-  boardId: string;
+  boardId?: string | null;
   projectId?: string | null;
   onPostCreated: () => void;
+  onUploadStart?: () => void;
 }
 
 export function PostEditorModal({
   isOpen,
   onClose,
-  boardId,
+  boardId: initialBoardId,
   projectId,
   onPostCreated,
+  onUploadStart,
 }: PostEditorModalProps) {
+  // Boards state
+  const [boards, setBoards] = useState<Board[]>([]);
+  const [selectedBoardId, setSelectedBoardId] = useState<string>(
+    initialBoardId || ''
+  );
+  const [isCreatingBoard, setIsCreatingBoard] = useState(false);
+  const [newBoardName, setNewBoardName] = useState('');
+  const [isBoardSubmitting, setIsBoardSubmitting] = useState(false);
+
+  // Media state
   const [mediaType, setMediaType] = useState<MediaType>('image');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -37,6 +62,7 @@ export function PostEditorModal({
   const [videoThumbnailFile, setVideoThumbnailFile] = useState<File | null>(null);
   const [videoThumbnailPreview, setVideoThumbnailPreview] = useState<string | null>(null);
 
+  // Prompts state
   const [promptTitle, setPromptTitle] = useState('');
   const [promptParts, setPromptParts] = useState<PromptPartInput[]>([
     { id: '1', subheading: 'Positive', body_text: '' },
@@ -45,11 +71,39 @@ export function PostEditorModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Fetch boards on modal open
+  useEffect(() => {
+    if (!isOpen) return;
+
+    async function loadBoards() {
+      try {
+        const res = await fetch('/api/boards');
+        if (res.ok) {
+          const data = await res.json();
+          const list: Board[] = data.boards || [];
+          setBoards(list);
+
+          if (!selectedBoardId && list.length > 0) {
+            setSelectedBoardId(list[0].id);
+          } else if (initialBoardId) {
+            setSelectedBoardId(initialBoardId);
+          }
+        }
+      } catch (err) {
+        console.warn('Could not fetch boards in PostEditorModal', err);
+      }
+    }
+
+    loadBoards();
+  }, [isOpen, initialBoardId]);
+
   if (!isOpen) return null;
 
   // Real-time Drive validation per PRD §10 / UI_KIT §9
   const isInvalidDriveLink =
-    videoUrl.trim().length > 0 && !parseDriveLink(videoUrl);
+    mediaType === 'video_link' &&
+    videoUrl.trim().length > 0 &&
+    !parseDriveLink(videoUrl);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -93,10 +147,62 @@ export function PostEditorModal({
     );
   };
 
+  // Inline Quick Board Creation
+  const handleQuickCreateBoard = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newBoardName.trim()) return;
+
+    setIsBoardSubmitting(true);
+    try {
+      const res = await fetch('/api/boards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newBoardName.trim() }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.board) {
+          setBoards((prev) => [data.board, ...prev]);
+          setSelectedBoardId(data.board.id);
+          setNewBoardName('');
+          setIsCreatingBoard(false);
+        }
+      } else {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to create board');
+      }
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Failed to create board');
+    } finally {
+      setIsBoardSubmitting(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+
+    // Verify board is selected
+    if (!selectedBoardId) {
+      setErrorMsg('Please select or create a board to save this post.');
+      return;
+    }
+
+    if (mediaType === 'image' && !imageFile && !imagePreview) {
+      setErrorMsg('Please select an image to upload.');
+      return;
+    }
+
+    if (mediaType === 'video_link' && !videoUrl.trim()) {
+      setErrorMsg('Please enter a Google Drive video link.');
+      return;
+    }
+
     setIsSubmitting(true);
+    if (onUploadStart) {
+      onUploadStart();
+    }
 
     try {
       let uploadedImageUrl: string | null = null;
@@ -104,18 +210,12 @@ export function PostEditorModal({
       let imgHeight: number | null = null;
       let uploadedThumbnailUrl: string | null = null;
 
-      if (mediaType === 'image') {
-        if (!imageFile) {
-          throw new Error('Please select an image to upload.');
-        }
+      if (mediaType === 'image' && imageFile) {
         const res = await uploadImage(imageFile, 'post-images');
         uploadedImageUrl = res.url;
         imgWidth = res.width;
         imgHeight = res.height;
       } else if (mediaType === 'video_link') {
-        if (!videoUrl) {
-          throw new Error('Please paste a Google Drive video link.');
-        }
         if (videoThumbnailFile) {
           const res = await uploadImage(videoThumbnailFile, 'video-thumbnails');
           uploadedThumbnailUrl = res.url;
@@ -129,13 +229,13 @@ export function PostEditorModal({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          board_id: boardId,
+          board_id: selectedBoardId,
           project_id: projectId || null,
           media_type: mediaType,
           image_url: uploadedImageUrl,
           image_width: imgWidth,
           image_height: imgHeight,
-          video_url: videoUrl || null,
+          video_url: videoUrl.trim() || null,
           video_thumbnail_url: uploadedThumbnailUrl,
           prompt_title: promptTitle.trim() || null,
           prompt_parts: promptParts
@@ -167,273 +267,427 @@ export function PostEditorModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-6 backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={onClose}
+    >
       <div
-        className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-[var(--bg-page)] p-6 shadow-2xl"
+        className="relative flex max-h-[92vh] w-full max-w-5xl flex-col rounded-3xl bg-[var(--bg-page)] shadow-2xl overflow-hidden border border-[var(--border-subtle)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between pb-4 border-b border-[var(--border-subtle)]">
-          <h2 className="text-xl font-bold text-[var(--text-primary)]">
-            Create New Post
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+        {/* Pinned Top Bar per Pinterest Pin-Builder Pattern */}
+        <header className="flex items-center justify-between border-b border-[var(--border-subtle)] px-6 py-4 bg-[var(--bg-page)]">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="flex h-10 w-10 items-center justify-center rounded-full text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+            >
+              <X className="h-5 w-5 stroke-[2]" />
+            </button>
+            <h2 className="text-lg sm:text-xl font-bold tracking-tight text-[var(--text-primary)]">
+              Create Pin
+            </h2>
+          </div>
 
-        {errorMsg && (
-          <div className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-[#D32F2F] border border-red-200">
-            {errorMsg}
+          {/* Target Board Dropdown & Publish Action */}
+          <div className="flex items-center gap-3">
+            {/* Board Selector */}
+            <div className="flex items-center gap-2">
+              <label className="hidden sm:inline text-xs font-semibold uppercase text-[var(--text-secondary)]">
+                Board:
+              </label>
+              {boards.length > 0 ? (
+                <div className="relative">
+                  <select
+                    value={selectedBoardId}
+                    onChange={(e) => {
+                      if (e.target.value === '__NEW__') {
+                        setIsCreatingBoard(true);
+                      } else {
+                        setSelectedBoardId(e.target.value);
+                      }
+                    }}
+                    className="h-10 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-subtle)] pl-4 pr-8 text-xs sm:text-sm font-semibold text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] cursor-pointer"
+                  >
+                    {boards.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.title}
+                      </option>
+                    ))}
+                    <option value="__NEW__">+ Create new board...</option>
+                  </select>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsCreatingBoard(true)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-[var(--border-subtle)] px-3 py-1.5 text-xs font-semibold text-[var(--accent)] hover:border-[var(--accent)] hover:bg-[var(--accent-subtle-bg)] transition-colors"
+                >
+                  <FolderPlus className="h-3.5 w-3.5" /> Create a Board
+                </button>
+              )}
+            </div>
+
+            {/* Primary Save / Publish Button in Pinterest Red */}
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="px-6 font-semibold shadow-sm"
+            >
+              {isSubmitting ? (
+                <span className="flex items-center gap-1.5">
+                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  Saving...
+                </span>
+              ) : (
+                'Publish'
+              )}
+            </Button>
+          </div>
+        </header>
+
+        {/* Inline Create Board Card (if triggered) */}
+        {isCreatingBoard && (
+          <div className="border-b border-[var(--border-subtle)] bg-[var(--bg-subtle)] px-6 py-3">
+            <form
+              onSubmit={handleQuickCreateBoard}
+              className="flex items-center gap-3"
+            >
+              <span className="text-xs font-semibold uppercase text-[var(--text-secondary)]">
+                New Board:
+              </span>
+              <Input
+                placeholder="e.g. Anime Portraits, Ad Concepts"
+                value={newBoardName}
+                onChange={(e) => setNewBoardName(e.target.value)}
+                autoFocus
+                className="max-w-xs h-9 bg-white"
+              />
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                disabled={isBoardSubmitting || !newBoardName.trim()}
+              >
+                {isBoardSubmitting ? 'Creating...' : 'Create'}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setIsCreatingBoard(false);
+                  setNewBoardName('');
+                }}
+              >
+                Cancel
+              </Button>
+            </form>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="mt-5 space-y-6">
-          {/* Media Type Selector */}
-          <div>
-            <label className="block text-xs font-semibold uppercase text-[var(--text-secondary)] mb-2">
-              Post Type
-            </label>
-            <div className="grid grid-cols-3 gap-3">
-              <button
-                type="button"
-                onClick={() => setMediaType('image')}
-                className={`flex items-center justify-center gap-2 rounded-xl border p-3 text-sm font-medium transition-all ${
-                  mediaType === 'image'
-                    ? 'border-[var(--accent)] bg-[var(--accent-subtle-bg)] text-[var(--accent)] font-semibold'
-                    : 'border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-secondary)]'
-                }`}
-              >
-                <ImageIcon className="h-4 w-4" />
-                Image
-              </button>
-              <button
-                type="button"
-                onClick={() => setMediaType('video_link')}
-                className={`flex items-center justify-center gap-2 rounded-xl border p-3 text-sm font-medium transition-all ${
-                  mediaType === 'video_link'
-                    ? 'border-[var(--accent)] bg-[var(--accent-subtle-bg)] text-[var(--accent)] font-semibold'
-                    : 'border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-secondary)]'
-                }`}
-              >
-                <Video className="h-4 w-4" />
-                Video (Drive)
-              </button>
-              <button
-                type="button"
-                onClick={() => setMediaType('none')}
-                className={`flex items-center justify-center gap-2 rounded-xl border p-3 text-sm font-medium transition-all ${
-                  mediaType === 'none'
-                    ? 'border-[var(--accent)] bg-[var(--accent-subtle-bg)] text-[var(--accent)] font-semibold'
-                    : 'border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-secondary)]'
-                }`}
-              >
-                <FileText className="h-4 w-4" />
-                Text Only
-              </button>
-            </div>
+        {/* Global Error Banner */}
+        {errorMsg && (
+          <div className="border-b border-red-200 bg-red-50 px-6 py-3 text-xs font-medium text-[#D32F2F] flex items-center justify-between">
+            <span>{errorMsg}</span>
+            <button
+              type="button"
+              onClick={() => setErrorMsg(null)}
+              className="text-[#D32F2F] hover:underline"
+            >
+              Dismiss
+            </button>
           </div>
+        )}
 
-          {/* Image Upload Area */}
-          {mediaType === 'image' && (
-            <div>
-              <label className="block text-xs font-semibold uppercase text-[var(--text-secondary)] mb-2">
-                Upload Image
-              </label>
-              <label className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[var(--border-subtle)] bg-[var(--bg-subtle)] p-6 text-center cursor-pointer hover:border-[var(--accent)] transition-colors">
-                {imagePreview ? (
-                  <div className="relative aspect-auto max-h-60 overflow-hidden rounded-xl">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={imagePreview}
-                      alt="Upload preview"
-                      className="max-h-60 rounded-xl object-contain"
+        {/* Two-Column Pin Builder Body */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            {/* ============================================================ */}
+            {/* LEFT COLUMN: Media Dropzone & Preview (~45% width on desktop) */}
+            {/* ============================================================ */}
+            <div className="lg:col-span-5 flex flex-col gap-4">
+              {/* Media Type Tabs */}
+              <div className="flex rounded-full bg-[var(--bg-subtle)] p-1 border border-[var(--border-subtle)]">
+                <button
+                  type="button"
+                  onClick={() => setMediaType('image')}
+                  className={`flex-1 flex items-center justify-center gap-1.5 rounded-full py-2 text-xs font-semibold transition-all cursor-pointer ${
+                    mediaType === 'image'
+                      ? 'bg-white text-[var(--text-primary)] shadow-sm'
+                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  <ImageIcon className="h-3.5 w-3.5" />
+                  Image
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMediaType('video_link')}
+                  className={`flex-1 flex items-center justify-center gap-1.5 rounded-full py-2 text-xs font-semibold transition-all cursor-pointer ${
+                    mediaType === 'video_link'
+                      ? 'bg-white text-[var(--text-primary)] shadow-sm'
+                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  <Video className="h-3.5 w-3.5" />
+                  Video (Drive)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMediaType('none')}
+                  className={`flex-1 flex items-center justify-center gap-1.5 rounded-full py-2 text-xs font-semibold transition-all cursor-pointer ${
+                    mediaType === 'none'
+                      ? 'bg-white text-[var(--text-primary)] shadow-sm'
+                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  Text Only
+                </button>
+              </div>
+
+              {/* 1. Image Mode Dropzone */}
+              {mediaType === 'image' && (
+                <div className="w-full">
+                  <label
+                    htmlFor="post-image-upload"
+                    className="relative flex min-h-[380px] w-full flex-col items-center justify-center rounded-3xl border-2 border-dashed border-[var(--border-subtle)] bg-[var(--bg-subtle)] p-6 text-center transition-colors hover:border-[var(--accent)] cursor-pointer overflow-hidden group"
+                  >
+                    {imagePreview ? (
+                      <div className="relative h-full w-full flex flex-col items-center justify-center">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={imagePreview}
+                          alt="Post upload preview"
+                          className="max-h-[360px] w-auto max-w-full rounded-2xl object-contain shadow-md"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-2xl">
+                          <span className="rounded-full bg-white/90 px-4 py-2 text-xs font-bold text-[var(--text-primary)] shadow">
+                            Click to replace image
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center p-6">
+                        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-sm mb-4 group-hover:scale-110 transition-transform">
+                          <Upload className="h-7 w-7 text-[var(--accent)]" />
+                        </div>
+                        <p className="text-sm font-semibold text-[var(--text-primary)] mb-1">
+                          Choose a file or drag and drop it here
+                        </p>
+                        <p className="text-xs text-[var(--text-secondary)] max-w-xs">
+                          High quality PNG, JPG, or WEBP. Max 20MB.
+                        </p>
+                      </div>
+                    )}
+                    <input
+                      id="post-image-upload"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className="hidden"
                     />
-                  </div>
-                ) : (
-                  <>
-                    <Upload className="h-8 w-8 text-[var(--text-secondary)] mb-2" />
-                    <span className="text-sm font-medium text-[var(--text-primary)]">
-                      Click to choose an image
-                    </span>
-                    <span className="text-xs text-[var(--text-secondary)] mt-1">
-                      PNG, JPG, WEBP
-                    </span>
-                  </>
-                )}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className="hidden"
-                />
-              </label>
-            </div>
-          )}
+                  </label>
+                </div>
+              )}
 
-          {/* Video Drive Link Area */}
-          {mediaType === 'video_link' && (
-            <div className="space-y-4">
+              {/* 2. Video Link Mode */}
+              {mediaType === 'video_link' && (
+                <div className="space-y-4 rounded-3xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)] p-5">
+                  <div>
+                    <label className="block text-xs font-semibold uppercase text-[var(--text-secondary)] mb-1.5">
+                      Google Drive Video Share Link
+                    </label>
+                    <Input
+                      placeholder="https://drive.google.com/file/d/.../view"
+                      value={videoUrl}
+                      onChange={(e) => setVideoUrl(e.target.value)}
+                      className="bg-white"
+                    />
+                    {isInvalidDriveLink && (
+                      <p className="mt-1.5 text-xs text-[#D32F2F] font-medium">
+                        This does not look like a Google Drive file link. Post can still be saved, but video player may not embed.
+                      </p>
+                    )}
+                    <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
+                      Set share permission to &ldquo;Anyone with the link can view&rdquo;.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold uppercase text-[var(--text-secondary)] mb-1.5">
+                      Video Thumbnail Image
+                    </label>
+                    <label
+                      htmlFor="video-thumb-upload"
+                      className="flex min-h-[160px] flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[var(--border-subtle)] bg-white p-4 text-center cursor-pointer hover:border-[var(--accent)] transition-colors overflow-hidden"
+                    >
+                      {videoThumbnailPreview ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img
+                          src={videoThumbnailPreview}
+                          alt="Thumbnail preview"
+                          className="max-h-36 rounded-xl object-contain shadow-sm"
+                        />
+                      ) : (
+                        <>
+                          <Upload className="h-6 w-6 text-[var(--text-secondary)] mb-1.5" />
+                          <span className="text-xs font-semibold text-[var(--text-primary)]">
+                            Select thumbnail cover
+                          </span>
+                        </>
+                      )}
+                      <input
+                        id="video-thumb-upload"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleThumbnailChange}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* 3. Text Only Mode Preview */}
+              {mediaType === 'none' && (
+                <div className="flex min-h-[260px] flex-col items-center justify-center rounded-3xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)] p-8 text-center">
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[var(--text-secondary)] shadow-sm mb-3">
+                    Text-Only Post
+                  </span>
+                  <p className="text-sm font-semibold text-[var(--text-primary)]">
+                    No visual media attached
+                  </p>
+                  <p className="text-xs text-[var(--text-secondary)] mt-1 max-w-xs">
+                    This post will appear as a styled card showcasing your prompt title and parameters.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* ============================================================ */}
+            {/* RIGHT COLUMN: Prompt Metadata & Section Cards (~55% width)   */}
+            {/* ============================================================ */}
+            <div className="lg:col-span-7 flex flex-col gap-6">
+              {/* Prompt Title */}
               <div>
-                <label className="block text-xs font-semibold uppercase text-[var(--text-secondary)] mb-2">
-                  Google Drive Video URL
+                <label className="block text-xs font-semibold uppercase text-[var(--text-secondary)] mb-1.5">
+                  Title
                 </label>
                 <Input
-                  placeholder="https://drive.google.com/file/d/..."
-                  value={videoUrl}
-                  onChange={(e) => setVideoUrl(e.target.value)}
+                  placeholder="e.g. Cyberpunk Street Portrait, 8k Unreal Engine"
+                  value={promptTitle}
+                  onChange={(e) => setPromptTitle(e.target.value)}
+                  className="text-base font-semibold py-2.5"
                 />
-
-                {/* Inline Drive Validation Error in dedicated #D32F2F per UI_KIT §9 */}
-                {isInvalidDriveLink && (
-                  <p className="mt-1.5 text-xs text-[#D32F2F] font-medium">
-                    This link does not look like a Google Drive file link. Post can still be saved, but video preview may not embed.
-                  </p>
-                )}
-
-                <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                  Make sure link sharing is set to &ldquo;Anyone with the link&rdquo;.
-                </p>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold uppercase text-[var(--text-secondary)] mb-2">
-                  Upload Video Thumbnail (Required for card preview)
-                </label>
-                <label className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[var(--border-subtle)] bg-[var(--bg-subtle)] p-4 text-center cursor-pointer hover:border-[var(--accent)] transition-colors">
-                  {videoThumbnailPreview ? (
-                    <div className="relative max-h-40 overflow-hidden rounded-xl">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={videoThumbnailPreview}
-                        alt="Thumbnail preview"
-                        className="max-h-40 rounded-xl object-contain"
-                      />
-                    </div>
-                  ) : (
-                    <>
-                      <Upload className="h-6 w-6 text-[var(--text-secondary)] mb-1" />
-                      <span className="text-xs font-medium text-[var(--text-primary)]">
-                        Select a thumbnail image
-                      </span>
-                    </>
-                  )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleThumbnailChange}
-                    className="hidden"
-                  />
-                </label>
-              </div>
-            </div>
-          )}
-
-          {/* Prompt Section */}
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold uppercase text-[var(--text-secondary)] mb-2">
-                Prompt Title (Optional)
-              </label>
-              <Input
-                placeholder="e.g. Cyberpunk Street Portrait"
-                value={promptTitle}
-                onChange={(e) => setPromptTitle(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-semibold uppercase text-[var(--text-secondary)]">
-                  Prompt Parts (Multi-part breakdown)
-                </label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => addPromptPart('Negative')}
-                    className="text-xs font-semibold text-[var(--accent)] hover:underline cursor-pointer"
-                  >
-                    + Negative
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => addPromptPart('Camera / Style')}
-                    className="text-xs font-semibold text-[var(--accent)] hover:underline cursor-pointer"
-                  >
-                    + Style
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {promptParts.map((part, index) => (
-                  <div
-                    key={part.id}
-                    className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)] p-3 space-y-2"
-                  >
-                    <div className="flex items-center justify-between">
-                      <input
-                        type="text"
-                        placeholder="Subheading (e.g. Positive, Negative, Camera)"
-                        value={part.subheading}
-                        onChange={(e) =>
-                          updatePromptPart(part.id, 'subheading', e.target.value)
-                        }
-                        className="bg-transparent text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] focus:outline-none"
-                      />
-                      {promptParts.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removePromptPart(part.id)}
-                          className="text-[var(--text-secondary)] hover:text-red-500 cursor-pointer"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                    <textarea
-                      rows={3}
-                      placeholder="Enter the prompt text..."
-                      value={part.body_text}
-                      onChange={(e) =>
-                        updatePromptPart(part.id, 'body_text', e.target.value)
-                      }
-                      className="w-full resize-none bg-transparent text-sm text-[var(--text-primary)] focus:outline-none"
-                      required={index === 0 && mediaType === 'none'}
-                    />
+              {/* Prompt Parts (Sections) */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+                      Prompt Sections
+                    </label>
+                    <p className="text-xs text-[var(--text-secondary)]">
+                      Add and organize your multi-part generation prompts
+                    </p>
                   </div>
-                ))}
-              </div>
 
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => addPromptPart('')}
-                className="mt-3 w-full"
-              >
-                <Plus className="mr-1.5 h-4 w-4" /> Add Prompt Part
-              </Button>
+                  {/* Section Quick Presets */}
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => addPromptPart('Positive')}
+                      className="rounded-full bg-[var(--bg-subtle)] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-secondary)] hover:bg-[var(--accent-subtle-bg)] hover:text-[var(--accent)] transition-colors cursor-pointer"
+                    >
+                      + Positive
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => addPromptPart('Negative')}
+                      className="rounded-full bg-[var(--bg-subtle)] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-secondary)] hover:bg-[var(--accent-subtle-bg)] hover:text-[var(--accent)] transition-colors cursor-pointer"
+                    >
+                      + Negative
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => addPromptPart('Style / Camera')}
+                      className="rounded-full bg-[var(--bg-subtle)] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-secondary)] hover:bg-[var(--accent-subtle-bg)] hover:text-[var(--accent)] transition-colors cursor-pointer"
+                    >
+                      + Style
+                    </button>
+                  </div>
+                </div>
+
+                {/* Prompt Parts List with Generous Visibility */}
+                <div className="space-y-3.5">
+                  {promptParts.map((part, index) => (
+                    <div
+                      key={part.id}
+                      className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)] p-4 transition-all focus-within:border-[var(--accent)] focus-within:ring-1 focus-within:ring-[var(--accent)]"
+                    >
+                      <div className="flex items-center justify-between pb-2 mb-2 border-b border-[var(--border-subtle)]">
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[11px] font-bold text-[var(--text-secondary)] shadow-xs">
+                            {index + 1}
+                          </span>
+                          <input
+                            type="text"
+                            placeholder="Section Name (e.g. Positive, Negative, Lighting)"
+                            value={part.subheading}
+                            onChange={(e) =>
+                              updatePromptPart(part.id, 'subheading', e.target.value)
+                            }
+                            className="bg-transparent text-xs font-semibold uppercase tracking-wider text-[var(--text-primary)] focus:outline-none placeholder:text-[var(--text-secondary)]"
+                          />
+                        </div>
+
+                        {promptParts.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removePromptPart(part.id)}
+                            aria-label="Remove prompt part"
+                            className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-secondary)] hover:bg-red-50 hover:text-red-600 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Full-width Generous Textarea so prompts are fully readable */}
+                      <textarea
+                        rows={4}
+                        placeholder="Enter prompt text here..."
+                        value={part.body_text}
+                        onChange={(e) =>
+                          updatePromptPart(part.id, 'body_text', e.target.value)
+                        }
+                        className="w-full resize-y rounded-xl bg-white p-3 text-sm leading-relaxed text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] border border-[var(--border-subtle)] focus:outline-none focus:border-[var(--accent)]"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => addPromptPart('Custom')}
+                  className="w-full py-2.5 rounded-2xl border-dashed"
+                >
+                  <Plus className="mr-1.5 h-4 w-4" /> Add Another Prompt Section
+                </Button>
+              </div>
             </div>
           </div>
-
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-[var(--border-subtle)]">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={onClose}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary" disabled={isSubmitting}>
-              {isSubmitting ? 'Saving Post...' : 'Save Post'}
-            </Button>
-          </div>
-        </form>
+        </div>
       </div>
     </div>
   );

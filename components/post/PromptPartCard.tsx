@@ -45,7 +45,7 @@ export function PromptPartCard({
           type="button"
           onClick={handleCopy}
           aria-label="Copy prompt part"
-          className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-white hover:text-[var(--text-primary)] cursor-pointer"
+          className="flex h-10 w-10 items-center justify-center rounded-xl text-[var(--text-secondary)] transition-colors hover:bg-white hover:text-[var(--text-primary)] cursor-pointer"
         >
           {copied ? (
             <Check className="h-4 w-4 text-[var(--success)] animate-in fade-in zoom-in duration-200" />

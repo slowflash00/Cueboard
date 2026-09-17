@@ -44,24 +44,28 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith('/otp') ||
     request.nextUrl.pathname.startsWith('/forgot-password') ||
     request.nextUrl.pathname.startsWith('/reset-password');
+
   const isProtectedPage =
+    request.nextUrl.pathname === '/' ||
     request.nextUrl.pathname.startsWith('/boards') ||
     request.nextUrl.pathname.startsWith('/posts') ||
     request.nextUrl.pathname.startsWith('/account');
 
+  // If unauthenticated user tries to access protected page, redirect to login
   if (!user && isProtectedPage && !isAuthPage) {
-    if (
-      process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      !process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder')
-    ) {
-      // In initial dev/preview we don't aggressively block '/' if there's no auth cookies yet
-      // but redirect when accessing protected subroutes
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    if (request.nextUrl.pathname !== '/') {
+      url.searchParams.set('redirectTo', request.nextUrl.pathname);
     }
+    return NextResponse.redirect(url);
   }
 
-  if (user && isAuthPage) {
+  // If logged-in user visits auth pages (except reset-password for recovery flow), redirect to dashboard
+  if (user && isAuthPage && request.nextUrl.pathname !== '/reset-password') {
     const url = request.nextUrl.clone();
     url.pathname = '/';
+    url.search = '';
     return NextResponse.redirect(url);
   }
 

@@ -116,13 +116,27 @@ export async function POST(request: Request) {
       data: { user },
     } = await supabase.auth.getUser();
 
-    const userId = user?.id || '00000000-0000-0000-0000-000000000000';
+    if (!user) {
+      return NextResponse.json(
+        { error: 'You must be logged in to create a post.' },
+        { status: 401 }
+      );
+    }
+
+    if (!body.board_id || typeof body.board_id !== 'string' || !body.board_id.trim()) {
+      return NextResponse.json(
+        { error: 'A valid Board is required. Please select or create a board.' },
+        { status: 400 }
+      );
+    }
+
+    const userId = user.id;
 
     // 1. Insert post (without project_id column)
     const { data: post, error: postError } = await supabase
       .from('posts')
       .insert({
-        board_id: body.board_id,
+        board_id: body.board_id.trim(),
         user_id: userId,
         media_type: body.media_type,
         image_url: body.image_url || null,

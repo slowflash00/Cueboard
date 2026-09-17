@@ -15,7 +15,7 @@ import { PostEditorModal } from '@/components/post/PostEditorModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { PostWithDetails, Board, Project } from '@/types/database';
-import { Layers, Search, FolderPlus } from 'lucide-react';
+import { Layers, Search, FolderPlus, ImageOff } from 'lucide-react';
 
 const PAGE_SIZE = 24;
 
@@ -33,6 +33,7 @@ export default function DashboardPage() {
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isUploadingPost, setIsUploadingPost] = useState(false);
   const observerRef = useRef<HTMLDivElement>(null);
 
   // Modals state
@@ -55,6 +56,8 @@ export default function DashboardPage() {
           if (data.boards && data.boards.length > 0) {
             setBoards(data.boards);
             setActiveBoardId(data.boards[0].id);
+          } else {
+            fetchPosts(true);
           }
         }
       } catch (e) {
@@ -66,12 +69,12 @@ export default function DashboardPage() {
 
   // Fetch initial posts (standalone only per PRD §9)
   const fetchPosts = async (reset = false) => {
-    if (!activeBoardId) return;
     const currentOffset = reset ? 0 : offset;
     try {
-      const res = await fetch(
-        `/api/posts?boardId=${activeBoardId}&standalone=true&limit=${PAGE_SIZE}&offset=${currentOffset}`
-      );
+      const url = activeBoardId
+        ? `/api/posts?boardId=${activeBoardId}&standalone=true&limit=${PAGE_SIZE}&offset=${currentOffset}`
+        : `/api/posts?standalone=true&limit=${PAGE_SIZE}&offset=${currentOffset}`;
+      const res = await fetch(url);
       const data = await res.json();
       if (data.posts && data.posts.length > 0) {
         if (reset) {
@@ -91,13 +94,12 @@ export default function DashboardPage() {
       setHasMore(false);
     } finally {
       setIsLoadingMore(false);
+      setIsUploadingPost(false);
     }
   };
 
   useEffect(() => {
-    if (activeBoardId) {
-      fetchPosts(true);
-    }
+    fetchPosts(true);
   }, [activeBoardId]);
 
   // Infinite Scroll IntersectionObserver per TRD §14
@@ -317,16 +319,16 @@ export default function DashboardPage() {
           {searchQuery ? `Search results for "${searchQuery}"` : 'Prompts & Creations'}
         </h2>
 
-        {filteredPosts.length === 0 ? (
+        {filteredPosts.length === 0 && !isUploadingPost ? (
           <EmptyState
-            icon={Search}
-            title={searchQuery ? `No results for "${searchQuery}"` : 'No prompts yet'}
+            icon={searchQuery ? Search : ImageOff}
+            title={searchQuery ? `No results for "${searchQuery}"` : 'Nothing here yet'}
             description={
               searchQuery
                 ? 'Try searching for another keyword or phrase.'
                 : 'Click "Create" in the top bar to record your first prompt.'
             }
-            actionLabel={searchQuery ? undefined : 'Create Post'}
+            actionLabel={searchQuery ? undefined : 'Create post'}
             onAction={searchQuery ? undefined : () => setIsEditorOpen(true)}
           />
         ) : (
@@ -342,6 +344,11 @@ export default function DashboardPage() {
             }}
           >
             <MasonryGrid>
+              {/* 0. Optimistic Post Upload Shimmer Skeleton per PRD §10 */}
+              {isUploadingPost && (
+                <SkeletonCard aspectRatio="4 / 5" className="animate-pulse" />
+              )}
+
               {/* 1. Grouped clusters */}
               {Array.from(groupedPostsMap.entries()).map(([groupKey, groupPosts]) => {
                 const color = groupPosts[0]?.group_color;
@@ -363,7 +370,7 @@ export default function DashboardPage() {
                     <button
                       type="button"
                       onClick={() => handleUngroup(groupKey)}
-                      className="text-xs font-medium text-[var(--text-secondary)] hover:text-red-500 hover:underline self-end pt-1"
+                      className="text-xs font-medium text-[var(--text-secondary)] hover:text-red-500 hover:underline self-end pt-1 cursor-pointer"
                     >
                       Ungroup
                     </button>
@@ -412,6 +419,7 @@ export default function DashboardPage() {
         onClose={() => setIsEditorOpen(false)}
         boardId={activeBoardId || ''}
         onPostCreated={() => fetchPosts(true)}
+        onUploadStart={() => setIsUploadingPost(true)}
       />
 
       {/* New Board Modal */}

@@ -44,18 +44,16 @@ export function ProjectTile({ project, posts = [], onClick }: ProjectTileProps) 
           </div>
         )}
 
-        {/* Stacked-card badge, top-right per UI_KIT §5 */}
-        <div className="absolute top-3 right-3 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 shadow-md backdrop-blur-md">
-          <Layers className="h-4 w-4 text-[var(--text-primary)]" />
+        {/* Stacked-card badge, top-left per UI_KIT §12 Rule 6 */}
+        <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 shadow-md backdrop-blur-md">
+          <Layers className="h-3.5 w-3.5 text-[var(--text-primary)]" />
+          <span className="text-[11px] font-semibold text-[var(--text-primary)]">
+            Project
+          </span>
         </div>
 
         {/* Gradient and Title / Hover Post count */}
-        <div className="absolute inset-0 flex flex-col justify-between bg-gradient-to-t from-black/70 via-black/10 to-transparent p-4 text-white">
-          <div>
-            <span className="inline-block rounded-md bg-black/40 px-2 py-0.5 text-xs font-medium backdrop-blur-md">
-              Project
-            </span>
-          </div>
+        <div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/70 via-black/10 to-transparent p-4 text-white">
           <div>
             <h3 className="text-base font-semibold drop-shadow-sm">{project.title}</h3>
             <p className="text-xs text-white/80 opacity-90 transition-opacity group-hover:opacity-100">

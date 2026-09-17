@@ -10,6 +10,7 @@ import { ProjectTile } from '@/components/grid/ProjectTile';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { SkeletonCard } from '@/components/ui/SkeletonCard';
 import { PostEditorModal } from '@/components/post/PostEditorModal';
 import { Board, Project, PostWithDetails } from '@/types/database';
 import { Folder, FolderPlus, Plus, ChevronRight, Layers } from 'lucide-react';
@@ -35,6 +36,7 @@ export default function BoardDetailPage({
   const [projects, setProjects] = useState<Project[]>([]);
   const [posts, setPosts] = useState<PostWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUploadingPost, setIsUploadingPost] = useState(false);
 
   // Modals
   const [isPostModalOpen, setIsPostModalOpen] = useState(false);
@@ -69,6 +71,7 @@ export default function BoardDetailPage({
       console.warn(e);
     } finally {
       setIsLoading(false);
+      setIsUploadingPost(false);
     }
   };
 
@@ -103,8 +106,8 @@ export default function BoardDetailPage({
     <div className="min-h-screen bg-[var(--bg-page)] pb-20">
       <Navbar
         onOpenNewPost={() => setIsPostModalOpen(true)}
-        onOpenNewProject={() => setIsProjectModalOpen(true)}
         showProjectButton
+        onOpenNewProject={() => setIsProjectModalOpen(true)}
       />
 
       <main className="mx-auto max-w-7xl px-4 sm:px-6 pt-6">
@@ -114,16 +117,16 @@ export default function BoardDetailPage({
             Boards
           </Link>
           <ChevronRight className="h-3.5 w-3.5" />
-          <span className="text-[var(--text-primary)]">{board?.title}</span>
+          <span className="text-[var(--text-primary)]">{board?.title || 'Board'}</span>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-[var(--border-subtle)]">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-[var(--text-primary)]">
-              {board?.title}
+              {board?.title || 'Board Collection'}
             </h1>
             <p className="text-sm text-[var(--text-secondary)] mt-1">
-              {projects.length} {projects.length === 1 ? 'project' : 'projects'} · {posts.length} standalone {posts.length === 1 ? 'post' : 'posts'}
+              {projects.length} {projects.length === 1 ? 'project' : 'projects'} • {posts.length} {posts.length === 1 ? 'standalone post' : 'standalone posts'}
             </p>
           </div>
 
@@ -133,7 +136,7 @@ export default function BoardDetailPage({
               size="sm"
               onClick={() => setIsProjectModalOpen(true)}
             >
-              <FolderPlus className="mr-1.5 h-4 w-4" /> New Project
+              <FolderPlus className="mr-1.5 h-4 w-4 text-[var(--text-secondary)]" /> New Project
             </Button>
             <Button
               variant="primary"
@@ -169,20 +172,23 @@ export default function BoardDetailPage({
             Standalone Posts
           </h2>
 
-          {posts.length === 0 && projects.length === 0 ? (
+          {posts.length === 0 && projects.length === 0 && !isUploadingPost ? (
             <EmptyState
               icon={Folder}
               title="Nothing here yet"
               description="Start building this board by adding your first AI prompt or project folder."
-              actionLabel="Create Post"
+              actionLabel="Create post"
               onAction={() => setIsPostModalOpen(true)}
             />
-          ) : posts.length === 0 ? (
+          ) : posts.length === 0 && !isUploadingPost ? (
             <div className="rounded-2xl border border-dashed border-[var(--border-subtle)] p-8 text-center text-sm text-[var(--text-secondary)]">
               All posts in this board are organized inside project folders above.
             </div>
           ) : (
             <MasonryGrid>
+              {isUploadingPost && (
+                <SkeletonCard aspectRatio="4 / 5" className="animate-pulse" />
+              )}
               {posts.map((post) => (
                 <PostCard key={post.id} post={post} />
               ))}
@@ -236,6 +242,7 @@ export default function BoardDetailPage({
         onClose={() => setIsPostModalOpen(false)}
         boardId={boardId}
         onPostCreated={loadData}
+        onUploadStart={() => setIsUploadingPost(true)}
       />
     </div>
   );

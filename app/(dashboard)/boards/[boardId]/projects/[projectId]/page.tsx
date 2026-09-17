@@ -10,6 +10,7 @@ import { GroupWrapper } from '@/components/group/GroupWrapper';
 import { GroupColorPicker } from '@/components/group/GroupColorPicker';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { SkeletonCard } from '@/components/ui/SkeletonCard';
 import { AddExistingPostModal } from '@/components/project/AddExistingPostModal';
 import { PostEditorModal } from '@/components/post/PostEditorModal';
 import { PostWithDetails, Project, Board } from '@/types/database';
@@ -27,6 +28,7 @@ export default function ProjectDetailPage({
   const [board, setBoard] = useState<Board | null>(null);
   const [posts, setPosts] = useState<PostWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUploadingPost, setIsUploadingPost] = useState(false);
 
   // Modals
   const [isAddExistingOpen, setIsAddExistingOpen] = useState(false);
@@ -66,84 +68,75 @@ export default function ProjectDetailPage({
       console.error(err);
     } finally {
       setIsLoading(false);
+      setIsUploadingPost(false);
     }
   };
 
   useEffect(() => {
     loadProjectData();
-  }, [boardId, projectId]);
+  }, [projectId]);
 
-  // Handle unlinking a post from project (does not delete the post row)
+  // Handle post unlinking per PRD §9
   const handleUnlinkPost = async (postId: string) => {
-    if (!confirm('Remove this post from the project? It will remain in the board.')) return;
     try {
-      const res = await fetch(`/api/projects/${projectId}/posts?postId=${postId}`, {
+      const res = await fetch(`/api/projects/${projectId}/posts`, {
         method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_id: postId }),
       });
       if (res.ok) {
-        setPosts((prev) => prev.filter((p) => p.id !== postId));
+        loadProjectData();
       }
     } catch (err) {
-      console.error('Failed to unlink post', err);
+      console.error(err);
     }
   };
 
-  // Grouping logic
+  // Grouping logic per PRD §5 & TRD §7
   const handleToggleSelect = (postId: string) => {
     setSelectedPostIds((prev) =>
-      prev.includes(postId)
-        ? prev.filter((id) => id !== postId)
-        : [...prev, postId]
+      prev.includes(postId) ? prev.filter((id) => id !== postId) : [...prev, postId]
     );
   };
 
-  const handleApplyGroupColor = async (token: string) => {
-    const newGroupKey = `group-${Date.now()}`;
-    setPosts((prev) =>
-      prev.map((p) =>
-        selectedPostIds.includes(p.id)
-          ? { ...p, group_key: newGroupKey, group_color: token }
-          : p
-      )
-    );
-
+  const handleApplyGroupColor = async (colorToken: string) => {
+    if (selectedPostIds.length < 2) return;
     try {
-      await fetch('/api/posts/group', {
+      const res = await fetch('/api/posts/group', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          postIds: selectedPostIds,
-          groupColor: token,
+          post_ids: selectedPostIds,
+          group_color: colorToken,
         }),
       });
-    } catch (e) {
-      console.error(e);
+      if (res.ok) {
+        setIsSelectMode(false);
+        setSelectedPostIds([]);
+        setGroupColorPickerOpen(false);
+        loadProjectData();
+      }
+    } catch (err) {
+      console.error(err);
     }
-
-    setSelectedPostIds([]);
-    setIsSelectMode(false);
-    setGroupColorPickerOpen(false);
   };
 
   const handleUngroup = async (groupKey: string) => {
-    setPosts((prev) =>
-      prev.map((p) =>
-        p.group_key === groupKey
-          ? { ...p, group_key: null, group_color: null }
-          : p
-      )
-    );
-
     try {
-      await fetch(`/api/posts/group?groupKey=${groupKey}`, {
+      const res = await fetch('/api/posts/group', {
         method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ group_key: groupKey }),
       });
-    } catch (e) {
-      console.error(e);
+      if (res.ok) {
+        loadProjectData();
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
-  // Separate grouped and standalone within project
+  // Separate posts into grouped and standalone
   const groupedMap = new Map<string, PostWithDetails[]>();
   const standalone: PostWithDetails[] = [];
 
@@ -258,7 +251,7 @@ export default function ProjectDetailPage({
 
         {/* Project Posts Grid */}
         <section className="mt-8">
-          {posts.length === 0 ? (
+          {posts.length === 0 && !isUploadingPost ? (
             <EmptyState
               icon={Folder}
               title="Project is empty"
@@ -268,6 +261,11 @@ export default function ProjectDetailPage({
             />
           ) : (
             <MasonryGrid>
+              {/* Optimistic upload shimmer */}
+              {isUploadingPost && (
+                <SkeletonCard aspectRatio="4 / 5" className="animate-pulse" />
+              )}
+
               {/* Grouped clusters */}
               {Array.from(groupedMap.entries()).map(([groupKey, groupPosts]) => {
                 const color = groupPosts[0]?.group_color;
@@ -352,6 +350,7 @@ export default function ProjectDetailPage({
         boardId={boardId}
         projectId={projectId}
         onPostCreated={loadProjectData}
+        onUploadStart={() => setIsUploadingPost(true)}
       />
     </div>
   );

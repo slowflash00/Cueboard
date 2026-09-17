@@ -65,8 +65,8 @@ export function Navbar({
       {/* 1. Left: Logo / Home */}
       <div className="flex items-center gap-6">
         <Link href="/" className="flex items-center gap-2.5 group">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-sm transition-transform group-hover:scale-105">
-            <LayoutGrid className="h-5 w-5" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--bg-subtle)] text-[var(--accent)] transition-transform group-hover:scale-105">
+            <LayoutGrid className="h-5 w-5 stroke-[2.2]" />
           </div>
           <span className="text-lg font-bold tracking-tight text-[var(--text-primary)]">
             Cueboard
